@@ -1,14 +1,14 @@
 # Tasks
 
-- [ ] Task 1: 初始化后端工程骨架
-  - [ ] 创建 backend 项目目录结构（core/db/models/schemas/api/services/tasks/tests）
-  - [ ] 集成 FastAPI、SQLAlchemy、Alembic、Redis、Celery 的最小可运行配置
-  - [ ] 提供 healthz/readyz 端点与基础日志/配置加载
+- [x] Task 1: 初始化后端工程骨架
+  - [x] 创建 backend 项目目录结构（core/db/models/schemas/api/services/tasks/tests）
+  - [x] 集成 FastAPI、SQLAlchemy、Alembic、Redis、Celery 的最小可运行配置
+  - [x] 提供 healthz/readyz 端点与基础日志/配置加载
 
-- [ ] Task 2: 建立认证与权限基础（RBAC + 数据范围）
-  - [ ] 定义 User/Role/Permission/Department 数据模型与迁移
-  - [ ] 实现 Token 解析（header: satoken）与统一鉴权依赖
-  - [ ] 实现角色权限矩阵与部门数据范围过滤工具
+- [x] Task 2: 建立认证与权限基础（RBAC + 数据范围）
+  - [x] 定义 User/Role/Permission/Department 数据模型与迁移
+  - [x] 实现 Token 解析（header: satoken）与统一鉴权依赖
+  - [x] 实现角色权限矩阵与部门数据范围过滤工具
 
 - [ ] Task 3: 建立审计与通知基础设施
   - [ ] 定义 audit_log 与 notification 表结构与迁移
@@ -79,4 +79,3 @@
 - Task 11 depends on Task 9
 - Task 12 depends on Task 2, Task 3
 - Task 13 depends on Task 5, Task 6, Task 7, Task 8, Task 9, Task 10, Task 11, Task 12
-
