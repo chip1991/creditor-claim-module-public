@@ -1,76 +1,51 @@
-import { NavLink, useLocation } from 'react-router-dom';
-import { Database, BellDot, Building2, Gavel, FileCheck, Search, Users, Shield, Settings, Key, MessageSquare, BrainCircuit, Bot, BarChart3 } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { Database, BrainCircuit, ClipboardList, BarChart3, MessageSquare, FileText, Settings } from 'lucide-react';
 import { clsx } from 'clsx';
 import { motion } from 'framer-motion';
 
 const Sidebar = () => {
-  const location = useLocation();
-  const isSettings = location.pathname.startsWith('/settings') || location.pathname.startsWith('/system');
-  const isEnterprise = location.pathname.startsWith('/enterprise');
-
-  const ledgerMenuGroups = [
+  const menuGroups = [
     {
-      groupLabel: '核心台账',
+      groupLabel: '数据中心',
       items: [
-        { name: '业务仪表盘', path: '/ledger/dashboard', icon: <BarChart3 size={16} /> },
-        { name: '债权申报台账', path: '/ledger/list', icon: <FileCheck size={16} /> },
+        { name: '数据管理中心', path: '/data/center', icon: <Database size={16} /> },
       ],
     },
     {
-      groupLabel: '监控预警',
+      groupLabel: 'AI分析',
       items: [
-        { name: '破产监控', path: '/monitoring/alert', icon: <BellDot size={16} /> },
-        { name: '债务人管理', path: '/monitoring/pool', icon: <Database size={16} /> },
+        { name: '投诉AI分析', path: '/analysis/list', icon: <BrainCircuit size={16} /> },
       ],
     },
     {
-      groupLabel: '数据采集',
+      groupLabel: '整改闭环',
       items: [
-        { name: '公开案件', path: '/public-data/case', icon: <Building2 size={16} /> },
-        { name: '公开公告', path: '/public-data/notice', icon: <Gavel size={16} /> },
-        { name: '采集任务', path: '/public-data/tasks', icon: <Database size={16} /> },
+        { name: '工单管理', path: '/workorder/list', icon: <ClipboardList size={16} /> },
+      ],
+    },
+    {
+      groupLabel: '数据看板',
+      items: [
+        { name: '可视化看板', path: '/dashboard', icon: <BarChart3 size={16} /> },
+      ],
+    },
+    {
+      groupLabel: '智能助手',
+      items: [
+        { name: 'AI智能问答', path: '/assistant/qa', icon: <MessageSquare size={16} /> },
+        { name: '自动化报告', path: '/assistant/report', icon: <FileText size={16} /> },
+      ],
+    },
+    {
+      groupLabel: '系统管理',
+      items: [
+        { name: '投诉分类配置', path: '/system/category', icon: <Settings size={16} /> },
+        { name: '根因知识库配置', path: '/system/knowledge', icon: <Settings size={16} /> },
+        { name: '部门与权限配置', path: '/system/permission', icon: <Settings size={16} /> },
+        { name: '智能体规则配置', path: '/system/rules', icon: <Settings size={16} /> },
       ],
     },
   ];
-
-  const settingsMenuGroups = [
-    {
-      groupLabel: '组织与权限',
-      items: [
-        { name: '用户管理', path: '/settings/user', icon: <Users size={16} /> },
-        { name: '角色管理', path: '/settings/role', icon: <Shield size={16} /> },
-        { name: '组织管理', path: '/settings/org', icon: <Building2 size={16} /> },
-      ],
-    },
-
-    {
-      groupLabel: '系统集成',
-      items: [
-        { name: 'OA流程配置', path: '/settings/oa', icon: <Settings size={16} /> },
-        { name: 'IAM配置', path: '/settings/iam', icon: <Key size={16} /> },
-        { name: '企微配置', path: '/settings/wecom', icon: <MessageSquare size={16} /> },
-      ],
-    },
-    {
-      groupLabel: 'AI智能中枢',
-      items: [
-        { name: '大模型配置', path: '/settings/llm', icon: <BrainCircuit size={16} /> },
-        { name: '智能体配置', path: '/settings/agent', icon: <Bot size={16} /> },
-      ],
-    }
-  ];
-
-  const enterpriseMenuGroups = [
-    {
-      groupLabel: '企业查询',
-      items: [
-        { name: '企业查询', path: '/enterprise/search', icon: <Search size={16} /> },
-        { name: '企业台账', path: '/enterprise/ledger', icon: <FileCheck size={16} /> },
-      ],
-    }
-  ];
-
-  const menuGroups = isSettings ? settingsMenuGroups : (isEnterprise ? enterpriseMenuGroups : ledgerMenuGroups);
 
   return (
     <nav className="py-6 space-y-8">
