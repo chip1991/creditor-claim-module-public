@@ -10,16 +10,16 @@
   - [x] 实现 Token 解析（header: satoken）与统一鉴权依赖
   - [x] 实现角色权限矩阵与部门数据范围过滤工具
 
-- [ ] Task 3: 建立审计与通知基础设施
-  - [ ] 定义 audit_log 与 notification 表结构与迁移
-  - [ ] 实现审计写入服务（支持 before/after、reason、source）
-  - [ ] 实现通知写入与已读接口（/notification/list、/notification/read-all）
+- [x] Task 3: 建立审计与通知基础设施
+  - [x] 定义 audit_log 与 notification 表结构与迁移
+  - [x] 实现审计写入服务（支持 before/after、reason、source）
+  - [x] 实现通知写入与已读接口（/notification/list、/notification/read-all）
 
-- [ ] Task 4: 实现任务中心（长任务 + SSE）
-  - [ ] 定义 task 表结构与迁移
-  - [ ] 实现任务状态查询接口（GET /task/{id}）
-  - [ ] 实现 SSE 推送接口（GET /task/{id}/stream）
-  - [ ] 定义 Celery 任务更新进度的统一方法
+- [x] Task 4: 实现任务中心（长任务 + SSE）
+  - [x] 定义 task 表结构与迁移
+  - [x] 实现任务状态查询接口（GET /task/{id}）
+  - [x] 实现 SSE 推送接口（GET /task/{id}/stream）
+  - [x] 定义 Celery 任务更新进度的统一方法
 
 - [ ] Task 5: 数据管理中心后端（导入/校验/清洗/关联/修复/导出）
   - [ ] 数据模型：data_record、导入任务与行级错误、清洗日志、关联日志
