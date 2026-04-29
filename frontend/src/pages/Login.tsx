@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
-import api from '../lib/axios';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -15,22 +14,10 @@ const Login: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
-    try {
-      const response = await api.post('/login', null, { params: { username, password } });
-
-      if (response.data && response.data.code === 200) {
-        localStorage.setItem('satoken', response.data.token);
-        localStorage.setItem('username', username);
-        navigate('/');
-      } else {
-        setError(response.data?.msg || '登录失败，请检查账号密码');
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.msg || '网络错误，请稍后重试');
-    } finally {
-      setLoading(false);
-    }
+    localStorage.setItem('satoken', 'dev-bypass');
+    localStorage.setItem('username', username || '当前账号');
+    setLoading(false);
+    navigate('/');
   };
 
   return (
@@ -95,7 +82,6 @@ const Login: React.FC = () => {
               <input
                 id="username"
                 type="text"
-                required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="block w-full px-4 py-3.5 bg-neutral-50/50 border border-neutral-200/80 focus:bg-white focus:border-neutral-400 focus:ring-0 sm:text-[13px] transition-colors placeholder-neutral-400 outline-none"
@@ -117,7 +103,6 @@ const Login: React.FC = () => {
               <input
                 id="password"
                 type="password"
-                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="block w-full px-4 py-3.5 bg-neutral-50/50 border border-neutral-200/80 focus:bg-white focus:border-neutral-400 focus:ring-0 sm:text-[13px] transition-colors placeholder-neutral-400 outline-none"
