@@ -333,7 +333,7 @@ def _parse_row(row_dict: dict[str, object]) -> ImportRowResult:
     if is_valid is None:
         errors.append(("是否有效", f"是否有效不合法：{is_valid_bad or is_valid_raw}"))
 
-    raw_text = norm_text(row_dict.get("调查备注问题")) or norm_text(row_dict.get("一般问题")) or ""
+    raw_text = norm_text(row_dict.get("一般问题"))
     if errors:
         return ImportRowResult(ok=False, errors=errors)
 
@@ -816,6 +816,32 @@ def query_data_page(
         .all()
     )
     return rows, int(total)
+
+
+def rebuild_call_audit_raw_text_from_general_problem(
+    db: Session,
+    *,
+    only_empty: bool = False,
+) -> dict[str, int]:
+    stmt = select(DataRecord).where(DataRecord.data_type == DataType.CALL_AUDIT.value)
+    rows = db.execute(stmt).scalars().all()
+    updated = 0
+    skipped = 0
+    empty = 0
+    for r in rows:
+        if not isinstance(r.raw_payload, dict):
+            skipped += 1
+            continue
+        general = norm_text(r.raw_payload.get("一般问题"))
+        if only_empty and (r.raw_text or "").strip():
+            skipped += 1
+            continue
+        if not general:
+            empty += 1
+        if (r.raw_text or "") != general:
+            r.raw_text = general
+            updated += 1
+    return {"total": len(rows), "updated": updated, "skipped": skipped, "empty": empty}
 
 
 def export_to_excel(db: Session, *, rows: list[DataRecord]) -> str:

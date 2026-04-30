@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, require_permissions
+from app.api.deps import CurrentUser, require_admin_or_permissions, require_permissions
 from app.core.errors import AppError
 from app.core.response import ApiResponse
 from app.db.session import get_db
@@ -21,6 +21,7 @@ from app.services.data_center import (
     manual_fix_and_retry_link,
     new_id,
     query_data_page,
+    rebuild_call_audit_raw_text_from_general_problem,
     run_clean_task,
     run_import_task,
     run_link_task,
@@ -182,6 +183,26 @@ def data_detail(
         "linkLogs": [to_log_dict(l) for l in link_logs],
     }
     return ApiResponse(data=data)
+
+
+@router.post("/data/call-audit/rebuild-raw-text", response_model=ApiResponse)
+def rebuild_call_audit_raw_text(
+    onlyEmpty: bool = False,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_admin_or_permissions("system:rules")),
+) -> ApiResponse:
+    result = rebuild_call_audit_raw_text_from_general_problem(db, only_empty=bool(onlyEmpty))
+    create_audit_log(
+        db,
+        entity_type="data_record",
+        entity_id="CALL_AUDIT",
+        action="DATA_CALL_AUDIT_RAW_TEXT_REBUILD",
+        actor=current_user,
+        after={"onlyEmpty": bool(onlyEmpty), **result},
+        source="api:/data/call-audit/rebuild-raw-text",
+    )
+    db.commit()
+    return ApiResponse(data=result)
 
 
 @router.post("/data/clean", response_model=ApiResponse)
