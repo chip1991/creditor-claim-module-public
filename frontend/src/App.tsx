@@ -5,6 +5,11 @@ import Login from './pages/Login';
 import Legal from './pages/Legal';
 import DataCenter from './pages/DataCenter';
 import DataDetail from './pages/DataDetail';
+import RawBatches from './pages/data/RawBatches';
+import RawBatchDetail from './pages/data/RawBatchDetail';
+import RawRowDetail from './pages/data/RawRowDetail';
+import ScoreStats from './pages/data/ScoreStats';
+import IssueList from './pages/data/IssueList';
 import AnalysisList from './pages/AnalysisList';
 import AnalysisDetail from './pages/AnalysisDetail';
 import WorkOrderList from './pages/WorkOrderList';
@@ -42,9 +47,14 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/legal" element={<Legal />} />
       <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
-        <Route index element={<Navigate to="/data/center" replace />} />
+        <Route index element={<Navigate to="/data/raw" replace />} />
         <Route path="data/center" element={<DataCenter />} />
         <Route path="data/detail" element={<DataDetail />} />
+        <Route path="data/raw" element={<RawBatches />} />
+        <Route path="data/raw/:batchId" element={<RawBatchDetail />} />
+        <Route path="data/raw/rows/:rowId" element={<RawRowDetail />} />
+        <Route path="data/score" element={<ScoreStats />} />
+        <Route path="data/issues" element={<IssueList />} />
         <Route path="analysis/list" element={<AnalysisList />} />
         <Route path="analysis/detail" element={<AnalysisDetail />} />
         <Route path="workorder/list" element={<WorkOrderList />} />

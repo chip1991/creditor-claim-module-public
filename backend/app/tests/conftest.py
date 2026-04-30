@@ -60,6 +60,7 @@ def db():
         permission_codes = [
             "data:import",
             "data:read",
+            "data:delete",
             "data:clean",
             "data:link",
             "data:export",

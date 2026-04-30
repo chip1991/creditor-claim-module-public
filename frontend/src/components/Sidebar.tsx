@@ -8,7 +8,9 @@ const Sidebar = () => {
     {
       groupLabel: '数据中心',
       items: [
-        { name: '数据管理中心', path: '/data/center', icon: <Database size={16} /> },
+        { name: '原始数据', path: '/data/raw', icon: <Database size={16} /> },
+        { name: '记分统计', path: '/data/score', icon: <Database size={16} /> },
+        { name: '投诉问题表', path: '/data/issues', icon: <Database size={16} /> },
       ],
     },
     {

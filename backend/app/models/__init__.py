@@ -30,6 +30,7 @@ from app.models.report import Report, ReportAutoConfig, ReportCycle, ReportStatu
 from app.models.ai_config import AiAgent, AiAgentVersion, AiLlm
 from app.models.root_cause_kb import RootCauseKb
 from app.models.complaint_category import ComplaintCategoryLv1, ComplaintCategoryLv2
+from app.models.raw_data import RawDataBatch, RawDataRow, RawIssue
 
 __all__ = [
     "AuditLog",
@@ -39,6 +40,9 @@ __all__ = [
     "ComplaintAnalysis",
     "ComplaintCategoryLv1",
     "ComplaintCategoryLv2",
+    "RawDataBatch",
+    "RawDataRow",
+    "RawIssue",
     "RootCauseKb",
     "Department",
     "DataCleanLog",
