@@ -149,6 +149,7 @@ def test_raw_import_and_query(db):
     issues = cli.get("/api/raw/issues/page?page=1&size=20").json()
     assert issues["code"] == "OK"
     assert issues["data"]["total"] >= 1
+    assert all(r.get("sourceField") == "一般问题" for r in issues["data"]["records"])
 
     score = cli.get(f"/api/raw/score/summary?batchId={batch_id}&groupBy=regionCompany").json()
     assert score["code"] == "OK"

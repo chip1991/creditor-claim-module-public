@@ -275,20 +275,6 @@ def run_raw_import_task(*, task_id: str, batch_id: str, actor_id: int | None) ->
                                 dialed_at=record.dialed_at,
                             )
                         )
-                    for issue_text in _extract_issues(record.remark_issue):
-                        db.add(
-                            RawIssue(
-                                batch_id=batch_id,
-                                row_id=record.id,
-                                source_field="调查备注问题",
-                                issue_text=issue_text,
-                                region_company=record.region_company,
-                                project_name=record.project_name,
-                                building_no=record.building_no,
-                                task_batch=record.task_batch,
-                                dialed_at=record.dialed_at,
-                            )
-                        )
 
                     success += 1
                 except Exception:
@@ -461,8 +447,12 @@ def query_raw_issue_page(
         clauses.append(RawIssue.project_name == project_name)
     if task_batch:
         clauses.append(RawIssue.task_batch == task_batch)
-    if source_field:
-        clauses.append(RawIssue.source_field == source_field)
+    if source_field is None:
+        clauses.append(RawIssue.source_field == "一般问题")
+    elif source_field == "一般问题":
+        clauses.append(RawIssue.source_field == "一般问题")
+    else:
+        clauses.append(RawIssue.source_field == "__none__")
     if keyword:
         kw = f"%{keyword.strip()}%"
         clauses.append(RawIssue.issue_text.ilike(kw))
@@ -548,4 +538,3 @@ def query_raw_score_summary(
             }
         )
     return out
-

@@ -14,7 +14,7 @@ export default function IssueList() {
 
   const [filters, setFilters] = useState({
     batchId: '',
-    sourceField: '',
+    sourceField: '一般问题',
     keyword: '',
   });
 
@@ -60,7 +60,7 @@ export default function IssueList() {
   };
 
   const handleReset = () => {
-    setFilters({ batchId: '', sourceField: '', keyword: '' });
+    setFilters({ batchId: '', sourceField: '一般问题', keyword: '' });
     setCurrent(1);
     setTimeout(fetchIssues, 0);
   };
@@ -94,18 +94,6 @@ export default function IssueList() {
                   {b.filename}（{b.id}）
                 </option>
               ))}
-            </select>
-          </div>
-          <div className="w-56 shrink-0">
-            <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">来源字段</label>
-            <select
-              value={filters.sourceField}
-              onChange={(e) => setFilters({ ...filters, sourceField: e.target.value })}
-              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow appearance-none text-neutral-700"
-            >
-              <option value="">全部</option>
-              <option value="一般问题">一般问题</option>
-              <option value="调查备注问题">调查备注问题</option>
             </select>
           </div>
           <div className="w-72 shrink-0">
@@ -154,4 +142,3 @@ export default function IssueList() {
     </div>
   );
 }
-
