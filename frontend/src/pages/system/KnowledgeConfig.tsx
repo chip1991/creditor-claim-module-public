@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { Loader2, Plus, Search, Edit2, Trash2, Upload, Download, Ban, PlayCircle } from 'lucide-react';
+import { Loader2, Plus, Search, Edit2, Trash2, Download, Ban, PlayCircle, RotateCcw } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import api from '../../lib/axios';
 import DataTable from '../../components/DataTable';
@@ -16,18 +16,27 @@ export default function KnowledgeConfig() {
   const [records, setRecords] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const size = 20;
+  const [size, setSize] = useState(20);
 
-  const [keyword, setKeyword] = useState('');
-  const [filterLv1, setFilterLv1] = useState('');
-  const [filterLv2, setFilterLv2] = useState('');
-  const [filterLevel, setFilterLevel] = useState('');
-  const [filterEnabled, setFilterEnabled] = useState<string>('');
+  const [filters, setFilters] = useState({
+    keyword: '',
+    categoryLv1: '',
+    categoryLv2: '',
+    level: '',
+    enabled: '',
+  });
+  const [query, setQuery] = useState({
+    keyword: '',
+    categoryLv1: '',
+    categoryLv2: '',
+    level: '',
+    enabled: '',
+  });
 
   const [categories, setCategories] = useState<Array<{ categoryLv1: string; categoryLv2List: string[] }>>([]);
   const lv2Options = useMemo(
-    () => categories.find((c) => c.categoryLv1 === filterLv1)?.categoryLv2List ?? [],
-    [categories, filterLv1]
+    () => categories.find((c) => c.categoryLv1 === filters.categoryLv1)?.categoryLv2List ?? [],
+    [categories, filters.categoryLv1]
   );
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -68,11 +77,11 @@ export default function KnowledgeConfig() {
         params: {
           page: nextPage,
           size,
-          keyword: keyword.trim() ? keyword.trim() : undefined,
-          categoryLv1: filterLv1 || undefined,
-          categoryLv2: filterLv2 || undefined,
-          level: filterLevel || undefined,
-          enabled: filterEnabled === '' ? undefined : filterEnabled === '1',
+          keyword: query.keyword.trim() ? query.keyword.trim() : undefined,
+          categoryLv1: query.categoryLv1 || undefined,
+          categoryLv2: query.categoryLv2 || undefined,
+          level: query.level || undefined,
+          enabled: query.enabled === '' ? undefined : query.enabled === '1',
         },
       });
       setRecords(res.data?.records ?? []);
@@ -88,12 +97,21 @@ export default function KnowledgeConfig() {
 
   useEffect(() => {
     fetchPage(page);
-  }, [page]);
+  }, [page, size, query]);
 
-  useEffect(() => {
+  const handleSearch = () => {
+    setQuery(filters);
     setPage(1);
-    fetchPage(1);
-  }, [keyword, filterLv1, filterLv2, filterLevel, filterEnabled]);
+    setTimeout(() => fetchPage(1), 0);
+  };
+
+  const handleReset = () => {
+    const init = { keyword: '', categoryLv1: '', categoryLv2: '', level: '', enabled: '' };
+    setFilters(init);
+    setQuery(init);
+    setPage(1);
+    setTimeout(() => fetchPage(1), 0);
+  };
 
   const openCreate = () => {
     setEditingId(null);
@@ -192,11 +210,11 @@ export default function KnowledgeConfig() {
 
   const handleExport = () => {
     const params = new URLSearchParams();
-    if (keyword.trim()) params.set('keyword', keyword.trim());
-    if (filterLv1) params.set('categoryLv1', filterLv1);
-    if (filterLv2) params.set('categoryLv2', filterLv2);
-    if (filterLevel) params.set('level', filterLevel);
-    if (filterEnabled !== '') params.set('enabled', filterEnabled === '1' ? 'true' : 'false');
+    if (query.keyword.trim()) params.set('keyword', query.keyword.trim());
+    if (query.categoryLv1) params.set('categoryLv1', query.categoryLv1);
+    if (query.categoryLv2) params.set('categoryLv2', query.categoryLv2);
+    if (query.level) params.set('level', query.level);
+    if (query.enabled !== '') params.set('enabled', query.enabled === '1' ? 'true' : 'false');
     window.open(`/api/kb/root-causes/export?${params.toString()}`, '_blank');
   };
 
@@ -217,142 +235,176 @@ export default function KnowledgeConfig() {
         <p className="text-sm text-neutral-500 mt-1">以结构化条目维护根因，用于投诉 AI 分析输出的根因选择</p>
       </div>
 
-      <div className="bg-white border border-neutral-200 rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-              <input
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="搜索根因内容 / 关键词"
-                className="w-[260px] pl-9 pr-3 py-2 bg-white border border-neutral-200 rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow text-neutral-900"
-              />
-            </div>
+      <div className="bg-white p-5 rounded-lg border border-neutral-200 shadow-sm">
+        <div className="flex flex-wrap gap-x-6 gap-y-4 items-end">
+          <div className="w-72 shrink-0">
+            <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">关键字</label>
+            <input
+              type="text"
+              value={filters.keyword}
+              onChange={(e) => setFilters((v) => ({ ...v, keyword: e.target.value }))}
+              placeholder="根因内容/关键词..."
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow"
+            />
+          </div>
+          <div className="w-56 shrink-0">
+            <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">一级分类</label>
             <select
-              value={filterLv1}
-              onChange={(e) => {
-                setFilterLv1(e.target.value);
-                setFilterLv2('');
-              }}
-              className="px-3 py-2 bg-white border border-neutral-200 rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow text-neutral-900"
+              value={filters.categoryLv1}
+              onChange={(e) =>
+                setFilters((v) => ({ ...v, categoryLv1: e.target.value, categoryLv2: '' }))
+              }
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow appearance-none text-neutral-700"
             >
-              <option value="">全部一级分类</option>
+              <option value="">全部</option>
               {categories.map((c) => (
                 <option key={c.categoryLv1} value={c.categoryLv1}>
                   {c.categoryLv1}
                 </option>
               ))}
             </select>
+          </div>
+          <div className="w-56 shrink-0">
+            <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">二级分类</label>
             <select
-              value={filterLv2}
-              onChange={(e) => setFilterLv2(e.target.value)}
-              disabled={!filterLv1}
-              className="px-3 py-2 bg-white border border-neutral-200 rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow text-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              value={filters.categoryLv2}
+              onChange={(e) => setFilters((v) => ({ ...v, categoryLv2: e.target.value }))}
+              disabled={!filters.categoryLv1}
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow appearance-none text-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="">全部二级分类</option>
+              <option value="">全部</option>
               {lv2Options.map((x) => (
                 <option key={x} value={x}>
                   {x}
                 </option>
               ))}
             </select>
+          </div>
+          <div className="w-56 shrink-0">
+            <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">根因层级</label>
             <select
-              value={filterLevel}
-              onChange={(e) => setFilterLevel(e.target.value)}
-              className="px-3 py-2 bg-white border border-neutral-200 rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow text-neutral-900"
+              value={filters.level}
+              onChange={(e) => setFilters((v) => ({ ...v, level: e.target.value }))}
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow appearance-none text-neutral-700"
             >
-              <option value="">全部层级</option>
+              <option value="">全部</option>
               <option value="surface">表层问题</option>
               <option value="direct">直接原因</option>
               <option value="deep">深层管理根因</option>
             </select>
+          </div>
+          <div className="w-56 shrink-0">
+            <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">启用状态</label>
             <select
-              value={filterEnabled}
-              onChange={(e) => setFilterEnabled(e.target.value)}
-              className="px-3 py-2 bg-white border border-neutral-200 rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow text-neutral-900"
+              value={filters.enabled}
+              onChange={(e) => setFilters((v) => ({ ...v, enabled: e.target.value }))}
+              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-shadow appearance-none text-neutral-700"
             >
-              <option value="">全部状态</option>
+              <option value="">全部</option>
               <option value="1">启用</option>
               <option value="0">禁用</option>
             </select>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".xlsx,.csv"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleImport(f);
-              }}
-            />
+
+          <div className="flex gap-3 ml-auto shrink-0">
             <button
-              onClick={() => fileRef.current?.click()}
-              disabled={importing}
-              className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-neutral-700 bg-white border border-neutral-200 rounded hover:bg-neutral-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleReset}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
             >
-              {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-              导入
+              <RotateCcw size={16} />
+              重置
             </button>
             <button
-              onClick={handleExport}
-              className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-neutral-700 bg-white border border-neutral-200 rounded hover:bg-neutral-50 transition-colors"
+              onClick={handleSearch}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-neutral-900 rounded-md hover:bg-neutral-800 transition-colors shadow-sm"
             >
-              <Download size={14} />
-              导出
-            </button>
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-white bg-neutral-900 rounded hover:bg-neutral-800 transition-colors shadow-sm"
-            >
-              <Plus size={14} />
-              新增条目
+              <Search size={16} />
+              查询
             </button>
           </div>
         </div>
-
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-neutral-500">
-            <Loader2 size={16} className="animate-spin" /> 加载中...
-          </div>
-        ) : (
-          <DataTable
-            columns={columns as any}
-            data={records}
-            total={total}
-            current={page}
-            size={size}
-            onPageChange={(p) => setPage(p)}
-            actions={(row) => (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => openEdit(row.id)}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-[12px] font-medium text-neutral-600 bg-neutral-50 rounded hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
-                >
-                  <Edit2 size={13} />
-                  编辑
-                </button>
-                <button
-                  onClick={() => handleToggle(row.id, !row.isEnabled)}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-[12px] font-medium text-neutral-600 bg-neutral-50 rounded hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
-                >
-                  {row.isEnabled ? <Ban size={13} /> : <PlayCircle size={13} />}
-                  {row.isEnabled ? '禁用' : '启用'}
-                </button>
-                <button
-                  onClick={() => handleDelete(row.id)}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-[12px] font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors"
-                >
-                  <Trash2 size={13} />
-                  删除
-                </button>
-              </div>
-            )}
-          />
-        )}
       </div>
+
+      <div className="flex items-center justify-between px-1">
+        <div className="text-[13px] font-medium text-neutral-500">
+          共检索到 <span className="font-semibold text-neutral-900">{total}</span> 条根因条目
+        </div>
+        <div className="flex gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleImport(f);
+            }}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={importing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-white bg-neutral-900 border border-neutral-900 rounded hover:bg-neutral-800 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {importing ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            新增/导入
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-neutral-700 bg-white border border-neutral-200 rounded hover:bg-neutral-50 transition-colors shadow-sm"
+          >
+            <Plus size={14} />
+            新增条目
+          </button>
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-neutral-700 bg-white border border-neutral-200 rounded hover:bg-neutral-50 transition-colors shadow-sm"
+          >
+            <Download size={14} />
+            导出
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-neutral-500">
+          <Loader2 size={16} className="animate-spin" /> 加载中...
+        </div>
+      ) : (
+        <DataTable
+          columns={columns as any}
+          data={records}
+          total={total}
+          current={page}
+          size={size}
+          onPageChange={(p) => setPage(p)}
+          onSizeChange={(s) => setSize(s)}
+          actions={(row) => (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => openEdit(row.id)}
+                className="inline-flex items-center gap-1 px-2 py-1 text-[12px] font-medium text-neutral-600 bg-neutral-50 rounded hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
+              >
+                <Edit2 size={13} />
+                编辑
+              </button>
+              <button
+                onClick={() => handleToggle(row.id, !row.isEnabled)}
+                className="inline-flex items-center gap-1 px-2 py-1 text-[12px] font-medium text-neutral-600 bg-neutral-50 rounded hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
+              >
+                {row.isEnabled ? <Ban size={13} /> : <PlayCircle size={13} />}
+                {row.isEnabled ? '禁用' : '启用'}
+              </button>
+              <button
+                onClick={() => handleDelete(row.id)}
+                className="inline-flex items-center gap-1 px-2 py-1 text-[12px] font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors"
+              >
+                <Trash2 size={13} />
+                删除
+              </button>
+            </div>
+          )}
+        />
+      )}
 
       <AnimatePresence>
         {isDrawerOpen && (
