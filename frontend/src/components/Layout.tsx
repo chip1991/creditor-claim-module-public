@@ -1,23 +1,27 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import { Bell, Grid, Menu, User, LogOut, Settings, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Bell, Grid, Menu, User, LogOut, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFloating, offset, flip, shift, autoUpdate, useClick, useDismiss, useInteractions, FloatingPortal } from '@floating-ui/react';
 import AppCenter from './AppCenter';
-import axios from 'axios';
+import api from '../lib/axios';
 
-const notifications = [
-  { id: 1, type: 'alert', title: '监控预警', desc: '发现新的破产案件：深圳市盈绰科技服务有限公司', time: '10 分钟前', read: false },
-  { id: 2, type: 'system', title: '台账审批通过', desc: '您的申报台账 LDG-20231018-002 已被管理员审批通过。', time: '2 小时前', read: true },
-  { id: 3, type: 'system', title: '系统更新', desc: 'V2.0.1 版本更新完成，优化了页面加载速度。', time: '昨天', read: true },
-];
+type NotificationItem = {
+  id: string | number;
+  type: 'alert' | 'system';
+  title: string;
+  desc: string;
+  time: string;
+  read: boolean;
+};
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [appCenterOpen, setAppCenterOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   
   const location = useLocation();
   const navigate = useNavigate();
@@ -35,6 +39,30 @@ const Layout = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const res = await api.get('/notification/list');
+        const list = Array.isArray(res.data) ? res.data : (res.data?.records || res.data?.list || []);
+        const mapped = (Array.isArray(list) ? list : []).map((n: any) => ({
+          id: n.id ?? `${n.title ?? 'msg'}-${Math.random()}`,
+          type: n.type === 'alert' ? 'alert' : 'system',
+          title: n.title ?? '系统消息',
+          desc: n.desc ?? n.content ?? '',
+          time: n.time ?? n.createTime ?? '',
+          read: Boolean(n.read),
+        })) as NotificationItem[];
+        setNotifications(mapped);
+      } catch {
+        setNotifications([]);
+      }
+    };
+
+    if (localStorage.getItem('satoken')) {
+      fetchNotifications();
+    }
   }, []);
 
   const { refs: profileRefs, floatingStyles: profileFloatingStyles, context: profileContext } = useFloating({
@@ -62,31 +90,30 @@ const Layout = () => {
   const { getReferenceProps: getNotifRefProps, getFloatingProps: getNotifFloatProps } = useInteractions([notifClick, notifDismiss]);
 
   const getPageTitle = (path: string) => {
-    if (path.includes('case')) return '公开案件';
-    if (path.includes('notice')) return '公开公告';
-    if (path.includes('pool')) return '债务人管理';
-    if (path.includes('alert')) return '破产监控';
-    if (path.includes('ledger/list')) return '债权申报台账';
-    if (path.includes('ledger/form')) return '台账详情';
-    if (path.includes('enterprise/search')) return '企业查询';
-    if (path.includes('enterprise/ledger/new')) return '新增企业台账';
-    if (path.includes('enterprise/ledger/edit')) return '编辑企业台账';
-    if (path.includes('enterprise/ledger/detail')) return '企业台账详情';
-    if (path.includes('enterprise/ledger')) return '企业台账';
-    if (path.includes('enterprise/form')) return '新增/编辑企业';
-    if (path.includes('enterprise/detail')) return '企业全景画像';
-    if (path.includes('settings/user')) return '用户管理';
-    if (path.includes('settings/role')) return '角色管理';
-    if (path.includes('settings/org')) return '组织管理';
-    if (path.includes('settings/oa')) return 'OA流程配置';
-    if (path.includes('settings/iam')) return 'IAM配置';
-    if (path.includes('settings/wecom')) return '企微配置';
-    if (path.includes('settings/llm')) return '大模型配置';
-    if (path.includes('settings/agent')) return '智能体配置';
-    if (path.includes('system/schedule')) return '定时任务管理';
-    if (path.includes('account/settings')) return '账号设置';
+    if (path.startsWith('/data/center')) return '数据管理中心';
+    if (path.startsWith('/data/detail')) return '数据详情';
+    if (path.startsWith('/analysis/list')) return '投诉AI分析';
+    if (path.startsWith('/analysis/detail')) return '投诉分析详情';
+    if (path.startsWith('/workorder/list')) return '整改闭环智能管控';
+    if (path.startsWith('/workorder/detail')) return '工单详情';
+    if (path.startsWith('/dashboard')) return '数据可视化看板';
+    if (path.startsWith('/assistant/qa')) return 'AI智能问答';
+    if (path.startsWith('/assistant/report/detail')) return '报告详情';
+    if (path.startsWith('/assistant/report')) return '自动化报告管理';
+    if (path.startsWith('/system/category')) return '投诉分类配置';
+    if (path.startsWith('/system/knowledge')) return '根因知识库配置';
+    if (path.startsWith('/system/permission')) return '部门与权限配置';
+    if (path.startsWith('/system/permission-center/roles/')) return '角色详情';
+    if (path.startsWith('/system/permission-center/orgs')) return '组织管理';
+    if (path.startsWith('/system/permission-center/roles')) return '角色管理';
+    if (path.startsWith('/system/permission-center/users')) return '用户管理';
+    if (path.startsWith('/system/permission-center')) return '权限中心';
+    if (path.startsWith('/system/rules')) return '智能体规则配置';
+    if (path.startsWith('/account/settings')) return '账号设置';
     return '首页';
   };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-neutral-50 text-neutral-900 font-sans">
@@ -103,7 +130,7 @@ const Layout = () => {
           >
             <div className="h-16 flex items-center px-4 shrink-0">
               <div className="w-7 h-7 bg-neutral-900 rounded-md flex items-center justify-center text-white mr-2.5 shrink-0">
-                <span className="font-bold text-sm">Y</span>
+                <span className="font-bold text-sm">AI</span>
               </div>
               <motion.span 
                 initial={{ opacity: 0 }}
@@ -111,7 +138,7 @@ const Layout = () => {
                 transition={{ delay: 0.1 }}
                 className="font-semibold text-neutral-900 text-[14px] whitespace-nowrap"
               >
-                盈绰服务云
+                投诉闭环智能体
               </motion.span>
             </div>
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
@@ -140,7 +167,11 @@ const Layout = () => {
                   >
                     <Bell size={16} className="group-hover:text-neutral-900 transition-colors shrink-0" />
                     <span className="text-[13px] font-medium leading-none mt-0.5">消息通知</span>
-                    <span className="ml-auto w-5 h-5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full mr-1">1</span>
+                    {unreadCount > 0 && (
+                      <span className="ml-auto w-5 h-5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full mr-1">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
                   </button>
 
                   <FloatingPortal>
@@ -162,7 +193,18 @@ const Layout = () => {
                             >
                               <div className="px-4 py-3 border-b border-neutral-100 bg-neutral-50/50 flex items-center justify-between">
                                 <span className="text-[13px] font-semibold text-neutral-900">消息通知</span>
-                                <button className="text-[11px] text-neutral-500 hover:text-neutral-900 transition-colors">全部已读</button>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await api.post('/notification/read-all');
+                                    } catch {
+                                    }
+                                    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+                                  }}
+                                  className="text-[11px] text-neutral-500 hover:text-neutral-900 transition-colors"
+                                >
+                                  全部已读
+                                </button>
                               </div>
                               <div className="flex-1 overflow-y-auto">
                                 {notifications.map((msg) => (
@@ -190,6 +232,11 @@ const Layout = () => {
                                     </div>
                                   </div>
                                 ))}
+                                {notifications.length === 0 && (
+                                  <div className="px-4 py-12 text-center text-sm text-neutral-500">
+                                    暂无消息
+                                  </div>
+                                )}
                               </div>
                             </motion.div>
                           </div>
@@ -210,8 +257,10 @@ const Layout = () => {
                     <User size={15} className="text-neutral-600" />
                   </div>
                   <div className="flex flex-col items-start truncate">
-                    <span className="text-sm font-medium text-neutral-900 leading-none mb-1">Admin</span>
-                    <span className="text-[11px] text-neutral-500 leading-none">admin@evertro.tech</span>
+                    <span className="text-sm font-medium text-neutral-900 leading-none mb-1">
+                      {localStorage.getItem('username') || '当前账号'}
+                    </span>
+                    <span className="text-[11px] text-neutral-500 leading-none">已登录</span>
                   </div>
                 </button>
 
@@ -236,22 +285,13 @@ const Layout = () => {
                               className="w-56 bg-white rounded-lg shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-neutral-100 py-1.5"
                             >
                               <button 
-                                onClick={() => {
-                                  setProfileOpen(false);
-                                  navigate('/account/settings');
-                                }}
-                                className="w-full text-left px-4 py-2 text-[13px] font-medium text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 transition-colors flex items-center gap-2.5"
-                              >
-                                <Settings size={14} /> 账号设置
-                              </button>
-                              <button 
                                 onClick={async () => {
                                   try {
-                                    await axios.post('/api/logout');
-                                  } catch (err) {
-                                    console.error('Logout failed:', err);
+                                    await api.post('/logout');
+                                  } catch {
                                   }
                                   localStorage.removeItem('satoken');
+                                  localStorage.removeItem('username');
                                   setProfileOpen(false);
                                   navigate('/login');
                                 }}

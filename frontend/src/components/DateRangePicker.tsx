@@ -21,9 +21,23 @@ import { AnimatePresence, motion } from "framer-motion"
 
 export default function DateRangePicker({
   className,
-}: React.HTMLAttributes<HTMLDivElement>) {
-  const [date, setDate] = React.useState<DateRange | undefined>()
+  value,
+  onChange,
+}: Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'> & {
+  value?: DateRange
+  onChange?: (range?: DateRange) => void
+}) {
+  const [date, setDate] = React.useState<DateRange | undefined>(value)
   const [isOpen, setIsOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    if (value) setDate(value)
+  }, [value])
+
+  const handleSelect = (next?: DateRange) => {
+    setDate(next)
+    onChange?.(next)
+  }
 
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
@@ -89,7 +103,7 @@ export default function DateRangePicker({
                     mode="range"
                     defaultMonth={date?.from}
                     selected={date}
-                    onSelect={setDate}
+                    onSelect={handleSelect}
                     numberOfMonths={2}
                     locale={zhCN}
                   />

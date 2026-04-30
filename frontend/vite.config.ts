@@ -7,12 +7,15 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    minify: false,
+  },
   server: {
-    port: 5174,
+    port: 5175,
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8086',
         changeOrigin: true,
       }
     }

@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
-import { Search, Gavel, FileCheck, Settings, X } from 'lucide-react';
+import { Search, Database, BrainCircuit, ClipboardList, BarChart3, MessageSquare, Settings, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface AppCenterProps {
@@ -9,10 +9,12 @@ interface AppCenterProps {
 }
 
 const apps = [
-  { id: 'litigation', name: '诉讼管理', icon: <Gavel size={24} className="text-neutral-700" />, onClick: () => alert('开发中'), color: 'bg-neutral-100' },
-  { id: 'claim', name: '债权申报', icon: <FileCheck size={24} className="text-neutral-700" />, path: '/ledger/list', color: 'bg-neutral-100' },
-  { id: 'enterprise', name: '企业查询', icon: <Search size={24} className="text-neutral-700" />, path: '/enterprise/search', color: 'bg-neutral-100' },
-  { id: 'settings', name: '系统设置', icon: <Settings size={24} className="text-neutral-700" />, path: '/settings/user', color: 'bg-neutral-100' },
+  { id: 'data', name: '数据管理中心', icon: <Database size={24} className="text-neutral-700" />, path: '/data/center', color: 'bg-neutral-100' },
+  { id: 'analysis', name: '投诉AI分析', icon: <BrainCircuit size={24} className="text-neutral-700" />, path: '/analysis/list', color: 'bg-neutral-100' },
+  { id: 'workorder', name: '工单管理', icon: <ClipboardList size={24} className="text-neutral-700" />, path: '/workorder/list', color: 'bg-neutral-100' },
+  { id: 'dashboard', name: '可视化看板', icon: <BarChart3 size={24} className="text-neutral-700" />, path: '/dashboard', color: 'bg-neutral-100' },
+  { id: 'qa', name: 'AI智能问答', icon: <MessageSquare size={24} className="text-neutral-700" />, path: '/assistant/qa', color: 'bg-neutral-100' },
+  { id: 'settings', name: '系统管理', icon: <Settings size={24} className="text-neutral-700" />, path: '/system/category', color: 'bg-neutral-100' },
 ];
 
 export default function AppCenter({ isOpen, onClose }: AppCenterProps) {
@@ -47,7 +49,7 @@ export default function AppCenter({ isOpen, onClose }: AppCenterProps) {
               <Search size={20} className="text-neutral-400 mr-3" />
               <input 
                 type="text" 
-                placeholder="搜索应用或全局功能... (Cmd+K)" 
+                placeholder="搜索应用或功能...（快捷键：Ctrl/⌘ + K）" 
                 className="flex-1 text-[15px] bg-transparent border-none focus:outline-none text-neutral-900 placeholder:text-neutral-400"
                 autoFocus
               />
@@ -64,17 +66,13 @@ export default function AppCenter({ isOpen, onClose }: AppCenterProps) {
               <div className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-4">
                 常用应用
               </div>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 {apps.map(app => (
                   <button
                     key={app.id}
                     onClick={() => {
-                      if (app.onClick) {
-                        app.onClick();
-                      } else if (app.path) {
-                        navigate(app.path);
-                        onClose();
-                      }
+                      navigate(app.path);
+                      onClose();
                     }}
                     className="flex flex-col items-center justify-center p-4 rounded-xl hover:bg-neutral-50 transition-colors group focus:outline-none"
                   >
