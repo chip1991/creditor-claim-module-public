@@ -19,5 +19,13 @@ celery_app.conf.beat_schedule = {
     "heartbeat": {
         "task": "app.tasks.tasks.heartbeat",
         "schedule": 60.0,
-    }
+    },
+    "workorder_warning_scan": {
+        "task": "app.tasks.tasks.workorder_warning_scan",
+        "schedule": 300.0,
+    },
+    "report_auto_generate_tick": {
+        "task": "app.tasks.tasks.report_auto_generate_tick",
+        "schedule": 60.0,
+    },
 }

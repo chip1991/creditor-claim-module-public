@@ -33,7 +33,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title=settings.app_name)
     app.add_middleware(RequestIdMiddleware)
-    app.include_router(api_router)
+    app.include_router(api_router, prefix="/api")
 
     @app.exception_handler(AppError)
     async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:

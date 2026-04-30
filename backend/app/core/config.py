@@ -18,6 +18,16 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
 
+    analysis_confidence_threshold: float = 0.7
+    analysis_repeat_window_days: int = 30
+    analysis_repeat_threshold: int = 2
+    analysis_model_version: str = "rule-v1"
+
+    workorder_warning_hours: int = 24
+    workorder_auto_return_on_satisfaction_fail: bool = True
+    satisfaction_good_min_score: int = 9
+    satisfaction_ok_min_score: int = 7
+
 
 @lru_cache
 def get_settings() -> Settings:

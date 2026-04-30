@@ -26,6 +26,12 @@ api.interceptors.request.use(
 // 响应拦截器 - 处理 401 未授权
 api.interceptors.response.use(
   (response) => {
+    const payload = response.data;
+    if (payload && typeof payload === 'object' && 'code' in payload && 'data' in payload) {
+      if (payload.code === 'OK') {
+        return { ...response, data: payload.data };
+      }
+    }
     return response;
   },
   (error) => {
