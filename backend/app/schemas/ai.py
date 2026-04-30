@@ -18,6 +18,7 @@ class LlmListItem(BaseModel):
     provider: str | None = None
     model: str | None = None
     baseUrl: str | None = None
+    apiKeyMasked: str | None = None
     isDefault: bool | None = None
     isEnabled: bool | None = None
     lastTestAt: datetime | None = None
@@ -132,6 +133,10 @@ class AgentVersionListResponse(BaseModel):
 
 class AgentDraftSaveRequest(BaseModel):
     config: dict = Field(default_factory=dict)
+
+
+class AgentPublishRequest(BaseModel):
+    versionId: str
 
 
 class AgentDraftSaveResponse(BaseModel):
