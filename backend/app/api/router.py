@@ -10,6 +10,9 @@ from app.api.system import router as system_router
 from app.api.dashboard import router as dashboard_router
 from app.api.qa import router as qa_router
 from app.api.report import router as report_router
+from app.api.iam import router as iam_router
+from app.api.rbac import router as rbac_router
+from app.api.v1_compat import router as v1_compat_router
 
 
 api_router = APIRouter()
@@ -23,3 +26,6 @@ api_router.include_router(system_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(qa_router)
 api_router.include_router(report_router)
+api_router.include_router(v1_compat_router)
+api_router.include_router(iam_router)
+api_router.include_router(rbac_router)

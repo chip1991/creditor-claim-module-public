@@ -82,6 +82,19 @@ def db():
             "system:rules",
             "system:scheduler",
             "system:config",
+            "iam:org:read",
+            "iam:org:sync",
+            "iam:role:read",
+            "iam:role:sync",
+            "iam:user:read",
+            "iam:user:sync",
+            "iam:user:status",
+            "rbac:role:read",
+            "rbac:role:write",
+            "rbac:user:read",
+            "rbac:user:write",
+            "rbac:permission:read",
+            "rbac:menu:read",
         ]
         for code in permission_codes:
             session.add(Permission(code=code, name=code, is_active=True))
@@ -96,4 +109,4 @@ def db():
 def actor(db):
     user = db.execute(select(User).where(User.username == "admin")).scalars().one()
     profile = DataScopeProfile(scope=RoleDataScope.ALL, user_id=user.id, dept_id=user.department_id, custom_dept_ids=frozenset())
-    return CurrentUser(id=user.id, username=user.username, dept_id=user.department_id, permission_codes=frozenset(), data_scope=profile)
+    return CurrentUser(id=user.id, username=user.username, dept_id=user.department_id, permission_codes=frozenset(), menu_ids=frozenset(), data_scope=profile)

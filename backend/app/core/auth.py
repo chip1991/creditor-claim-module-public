@@ -12,7 +12,14 @@ from app.core.redis_client import get_redis
 from app.db.session import get_db
 from app.models.rbac import Role, RoleDataScope, User, user_role
 from app.services.data_scope import DataScopeProfile
-from app.services.rbac import get_custom_dept_ids_for_roles, get_user_permission_codes, get_user_role_scopes, resolve_effective_scope, ensure_permissions
+from app.services.rbac import (
+    ensure_permissions,
+    get_custom_dept_ids_for_roles,
+    get_user_menu_ids,
+    get_user_permission_codes,
+    get_user_role_scopes,
+    resolve_effective_scope,
+)
 
 
 SATOKEN_REDIS_PREFIX = "satoken:session:"
@@ -24,6 +31,7 @@ class CurrentUser:
     username: str
     dept_id: int | None
     permission_codes: frozenset[str]
+    menu_ids: frozenset[str]
     data_scope: DataScopeProfile
 
 
@@ -69,6 +77,7 @@ def get_current_user(
         raise AppError(code="AUTH_INVALID", msg="账号不可用", status_code=401)
 
     permission_codes = frozenset(get_user_permission_codes(db, user_id))
+    menu_ids = frozenset(get_user_menu_ids(db, user_id))
     role_scopes = get_user_role_scopes(db, user_id)
     effective_scope = resolve_effective_scope(scope for _, scope in role_scopes)
     custom_dept_ids: set[int] = set()
@@ -87,6 +96,7 @@ def get_current_user(
         username=user.username,
         dept_id=user.department_id,
         permission_codes=permission_codes,
+        menu_ids=menu_ids,
         data_scope=profile,
     )
     request.state.current_user = current

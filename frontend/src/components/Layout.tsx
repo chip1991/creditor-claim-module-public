@@ -103,6 +103,11 @@ const Layout = () => {
     if (path.startsWith('/system/category')) return '投诉分类配置';
     if (path.startsWith('/system/knowledge')) return '根因知识库配置';
     if (path.startsWith('/system/permission')) return '部门与权限配置';
+    if (path.startsWith('/system/permission-center/roles/')) return '角色详情';
+    if (path.startsWith('/system/permission-center/orgs')) return '组织管理';
+    if (path.startsWith('/system/permission-center/roles')) return '角色管理';
+    if (path.startsWith('/system/permission-center/users')) return '用户管理';
+    if (path.startsWith('/system/permission-center')) return '权限中心';
     if (path.startsWith('/system/rules')) return '智能体规则配置';
     if (path.startsWith('/account/settings')) return '账号设置';
     return '首页';

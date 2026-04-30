@@ -37,6 +37,31 @@ role_department = Table(
     Column("department_id", Integer, ForeignKey("department.id", ondelete="CASCADE"), primary_key=True),
 )
 
+role_menu = Table(
+    "role_menu",
+    Base.metadata,
+    Column("role_id", Integer, ForeignKey("role.id", ondelete="CASCADE"), primary_key=True),
+    Column("menu_id", String(64), ForeignKey("menu.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+class Menu(Base):
+    __tablename__ = "menu"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    permission_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    parent_id: Mapped[str | None] = mapped_column(ForeignKey("menu.id", ondelete="SET NULL"), nullable=True)
+    order_no: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="1")
+    created_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    parent: Mapped[Menu | None] = relationship("Menu", remote_side="Menu.id", back_populates="children")
+    children: Mapped[list[Menu]] = relationship("Menu", back_populates="parent")
+    roles: Mapped[list[Role]] = relationship("Role", secondary=role_menu, back_populates="menus")
+
 
 class Department(Base):
     __tablename__ = "department"
@@ -90,6 +115,7 @@ class Role(Base):
     users: Mapped[list[User]] = relationship("User", secondary=user_role, back_populates="roles")
     permissions: Mapped[list[Permission]] = relationship("Permission", secondary=role_permission, back_populates="roles")
     departments: Mapped[list[Department]] = relationship("Department", secondary=role_department, back_populates="roles")
+    menus: Mapped[list[Menu]] = relationship("Menu", secondary=role_menu, back_populates="roles")
 
 
 class Permission(Base):

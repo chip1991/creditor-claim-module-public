@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, RotateCcw, ShieldCheck, Settings, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import axios from '../../lib/axios';
 import { useToast } from '../../components/ui/Toast';
 
@@ -8,24 +9,58 @@ interface Role {
   id: number;
   name: string;
   code: string;
-  desc: string;
-  users: number;
-  syncTime: string;
+  desc?: string;
+  users?: number;
+  syncTime?: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
 }
 
 export default function RoleManagement() {
+  const navigate = useNavigate();
   const [data, setData] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [keywordInput, setKeywordInput] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(20);
   const { showToast, ToastComponent } = useToast();
+
+  const formatTime = (value: unknown) => {
+    if (!value) return '-';
+    if (typeof value === 'string') return value.replace('T', ' ').replace('Z', '');
+    return String(value);
+  };
 
   const fetchRoles = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/v1/roles');
-      setData(response.data.data || response.data || []);
+      const response = await axios.get('/iam/roles/page', {
+        params: {
+          page,
+          size,
+          keyword: keyword ? keyword.trim() : undefined,
+        },
+      });
+      const payload = response.data || {};
+      setTotal(Number(payload.total || 0));
+      const records = (payload.records || []) as any[];
+      setData(
+        records.map((r) => ({
+          id: Number(r.id),
+          name: String(r.name ?? ''),
+          code: String(r.code ?? r.key ?? ''),
+          desc: r.desc ?? undefined,
+          users: typeof r.users === 'number' ? r.users : undefined,
+          syncTime: r.syncTime ?? undefined,
+          updatedAt: r.updatedAt ?? null,
+          createdAt: r.createdAt ?? null,
+        }))
+      );
     } catch (error) {
-      console.error('Failed to fetch roles:', error);
+      console.error('获取角色列表失败:', error);
       showToast('获取角色列表失败', 'error');
     } finally {
       setLoading(false);
@@ -34,20 +69,38 @@ export default function RoleManagement() {
 
   useEffect(() => {
     fetchRoles();
-  }, []);
+  }, [page, size, keyword]);
 
   const handleSync = async () => {
     setSyncing(true);
     try {
-      await axios.post('/v1/roles/sync');
-      showToast('同步成功', 'success');
+      const response = await axios.post('/iam/roles/sync');
+      const payload = response.data || {};
+      const msg = payload.message ? `同步完成：${payload.message}` : '同步成功';
+      showToast(msg, payload.status === 'SUCCESS' ? 'success' : 'info');
       fetchRoles();
     } catch (error) {
-      console.error('Failed to sync roles:', error);
+      console.error('同步角色失败:', error);
       showToast('同步失败', 'error');
     } finally {
       setSyncing(false);
     }
+  };
+
+  const totalPages = Math.max(1, Math.ceil(total / size));
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
+  const handleSearch = () => {
+    setPage(1);
+    setKeyword(keywordInput.trim());
+  };
+
+  const handleReset = () => {
+    setKeywordInput('');
+    setKeyword('');
+    setPage(1);
+    setSize(20);
   };
 
   return (
@@ -61,15 +114,28 @@ export default function RoleManagement() {
             <input 
               type="text" 
               placeholder="请输入关键词检索..." 
+              value={keywordInput}
+              onChange={(e) => setKeywordInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSearch();
+              }}
               className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow"
             />
           </div>
           <div className="flex gap-3 ml-auto shrink-0 mt-4 xl:mt-0">
-            <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
+            >
               <RotateCcw size={16} />
               重置
             </button>
-            <button className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-neutral-900 rounded-md hover:bg-neutral-800 transition-colors shadow-sm">
+            <button
+              type="button"
+              onClick={handleSearch}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-neutral-900 rounded-md hover:bg-neutral-800 transition-colors shadow-sm"
+            >
               <Search size={16} />
               搜索
             </button>
@@ -80,7 +146,7 @@ export default function RoleManagement() {
       {/* Global Actions (Cardless) */}
       <div className="flex items-center justify-between px-1">
         <div className="text-[13px] font-medium text-neutral-500">
-          共检索到 <span className="font-semibold text-neutral-900">{data.length}</span> 个角色
+          共检索到 <span className="font-semibold text-neutral-900">{total}</span> 个角色
         </div>
         <div className="flex gap-2">
           <button 
@@ -122,18 +188,32 @@ export default function RoleManagement() {
                   key={row.id} 
                   className="group hover:bg-neutral-50 transition-colors"
                 >
-                  <td className="px-6 py-4 text-sm font-medium text-brand whitespace-nowrap cursor-pointer hover:underline">{row.name}</td>
-                  <td className="px-6 py-4 text-sm font-mono text-neutral-500 whitespace-nowrap">{row.code}</td>
-                  <td className="px-6 py-4 text-sm text-neutral-600 whitespace-nowrap">{row.desc}</td>
-                  <td className="px-6 py-4 text-sm whitespace-nowrap">
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-[11px] font-medium border bg-brand-light text-brand-dark border-brand-100">
-                      {row.users} 人
-                    </span>
+                  <td
+                    className="px-6 py-4 text-sm font-medium text-brand whitespace-nowrap cursor-pointer hover:underline"
+                    onClick={() => navigate(`/system/permission-center/roles/${row.id}`, { state: { role: row } })}
+                  >
+                    {row.name}
                   </td>
-                  <td className="px-6 py-4 text-sm font-mono text-neutral-400 whitespace-nowrap">{row.syncTime}</td>
+                  <td className="px-6 py-4 text-sm font-mono text-neutral-500 whitespace-nowrap">{row.code}</td>
+                  <td className="px-6 py-4 text-sm text-neutral-600 whitespace-nowrap">{row.desc || '-'}</td>
+                  <td className="px-6 py-4 text-sm whitespace-nowrap">
+                    {typeof row.users === 'number' ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-md text-[11px] font-medium border bg-brand-light text-brand-dark border-brand-100">
+                        {row.users} 人
+                      </span>
+                    ) : (
+                      <span className="text-neutral-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-mono text-neutral-400 whitespace-nowrap">
+                    {row.syncTime ? formatTime(row.syncTime) : formatTime(row.updatedAt || row.createdAt)}
+                  </td>
                   <td className="px-6 py-4 text-sm text-right whitespace-nowrap sticky right-0 bg-white group-hover:bg-neutral-50 transition-colors z-10 before:absolute before:inset-y-0 before:-left-4 before:w-4 before:bg-gradient-to-r before:from-transparent before:to-white group-hover:before:to-neutral-50">
                     <div className="flex justify-end gap-3">
-                      <button className="flex items-center gap-1 text-neutral-500 hover:text-brand transition-colors">
+                      <button
+                        onClick={() => navigate(`/system/permission-center/roles/${row.id}`, { state: { role: row } })}
+                        className="flex items-center gap-1 text-neutral-500 hover:text-brand transition-colors"
+                      >
                         <Settings size={14} /> 菜单权限配置
                       </button>
                     </div>
@@ -152,12 +232,43 @@ export default function RoleManagement() {
         </div>
         
         {/* Pagination */}
-        <div className="px-6 py-4 border-t border-neutral-200 bg-neutral-50/50 flex items-center justify-between">
-          <span className="text-sm text-neutral-500">共 {data.length} 条记录</span>
-          <div className="flex gap-1">
-            <button className="px-3 py-1 text-sm text-neutral-400 cursor-not-allowed">上一页</button>
-            <button className="px-3 py-1 text-sm bg-neutral-900 text-white rounded">1</button>
-            <button className="px-3 py-1 text-sm text-neutral-600 hover:bg-neutral-200 rounded transition-colors">下一页</button>
+        <div className="px-6 py-4 border-t border-neutral-200 bg-neutral-50/50 flex items-center justify-between gap-4">
+          <span className="text-sm text-neutral-500">共 {total} 条记录</span>
+          <div className="flex items-center gap-3">
+            <select
+              value={size}
+              onChange={(e) => {
+                setSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="px-3 py-1.5 text-sm bg-white border border-neutral-200 rounded-md text-neutral-700 focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow"
+            >
+              <option value={10}>10 条/页</option>
+              <option value={20}>20 条/页</option>
+              <option value={50}>50 条/页</option>
+              <option value={100}>100 条/页</option>
+            </select>
+            <div className="flex gap-1 items-center">
+              <button
+                type="button"
+                onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+                className={`px-3 py-1 text-sm rounded transition-colors ${canPrev ? 'text-neutral-600 hover:bg-neutral-200' : 'text-neutral-400 cursor-not-allowed'}`}
+              >
+                上一页
+              </button>
+              <button type="button" className="px-3 py-1 text-sm bg-neutral-900 text-white rounded">
+                {page}
+              </button>
+              <button
+                type="button"
+                onClick={() => canNext && setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={!canNext}
+                className={`px-3 py-1 text-sm rounded transition-colors ${canNext ? 'text-neutral-600 hover:bg-neutral-200' : 'text-neutral-400 cursor-not-allowed'}`}
+              >
+                下一页
+              </button>
+            </div>
           </div>
         </div>
       </div>

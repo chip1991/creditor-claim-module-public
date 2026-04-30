@@ -6,7 +6,7 @@ from sqlalchemy import Select, distinct, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.models.rbac import Permission, Role, RoleDataScope, role_department, role_permission, user_role
+from app.models.rbac import Menu, Permission, Role, RoleDataScope, role_department, role_menu, role_permission, user_role
 
 
 def get_user_permission_codes(db: Session, user_id: int) -> set[str]:
@@ -20,6 +20,19 @@ def get_user_permission_codes(db: Session, user_id: int) -> set[str]:
     )
     rows = db.execute(stmt).scalars().all()
     return set(rows)
+
+
+def get_user_menu_ids(db: Session, user_id: int) -> set[str]:
+    stmt = (
+        select(distinct(Menu.id))
+        .select_from(Menu)
+        .join(role_menu, role_menu.c.menu_id == Menu.id)
+        .join(Role, Role.id == role_menu.c.role_id)
+        .join(user_role, user_role.c.role_id == Role.id)
+        .where(user_role.c.user_id == user_id, Menu.is_active.is_(True), Role.is_active.is_(True))
+    )
+    rows = db.execute(stmt).scalars().all()
+    return {str(x) for x in rows if x is not None}
 
 
 def get_role_permission_matrix(db: Session) -> dict[str, set[str]]:

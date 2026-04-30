@@ -1,4 +1,15 @@
-from app.models.rbac import Department, Permission, Role, RoleDataScope, User, role_department, role_permission, user_role
+from app.models.rbac import (
+    Department,
+    Menu,
+    Permission,
+    Role,
+    RoleDataScope,
+    User,
+    role_department,
+    role_menu,
+    role_permission,
+    user_role,
+)
 from app.models.audit import AuditLog, Notification
 from app.models.task import Task, TaskStatus
 from app.models.data_center import (
@@ -29,6 +40,7 @@ __all__ = [
     "DataStatus",
     "DataType",
     "Notification",
+    "Menu",
     "Permission",
     "Role",
     "RoleDataScope",
@@ -46,6 +58,7 @@ __all__ = [
     "WorkOrder",
     "WorkOrderActionLog",
     "role_department",
+    "role_menu",
     "role_permission",
     "user_role",
 ]

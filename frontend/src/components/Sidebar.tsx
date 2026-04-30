@@ -41,7 +41,7 @@ const Sidebar = () => {
       items: [
         { name: '投诉分类配置', path: '/system/category', icon: <Settings size={16} /> },
         { name: '根因知识库配置', path: '/system/knowledge', icon: <Settings size={16} /> },
-        { name: '部门与权限配置', path: '/system/permission', icon: <Settings size={16} /> },
+        { name: '权限中心', path: '/system/permission-center', icon: <Settings size={16} /> },
         { name: '智能体规则配置', path: '/system/rules', icon: <Settings size={16} /> },
       ],
     },

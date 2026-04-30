@@ -17,6 +17,11 @@ import CategoryConfig from './pages/system/CategoryConfig';
 import KnowledgeConfig from './pages/system/KnowledgeConfig';
 import PermissionConfig from './pages/system/PermissionConfig';
 import RulesConfig from './pages/system/RulesConfig';
+import PermissionCenter from './pages/system/PermissionCenter';
+import OrgManagement from './pages/settings/OrgManagement';
+import RoleManagement from './pages/settings/RoleManagement';
+import RoleDetail from './pages/settings/RoleDetail';
+import UserManagement from './pages/settings/UserManagement';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('satoken');
@@ -50,6 +55,13 @@ function App() {
         <Route path="system/knowledge" element={<KnowledgeConfig />} />
         <Route path="system/permission" element={<PermissionConfig />} />
         <Route path="system/rules" element={<RulesConfig />} />
+        <Route path="system/permission-center" element={<PermissionCenter />}>
+          <Route index element={<Navigate to="/system/permission-center/orgs" replace />} />
+          <Route path="orgs" element={<OrgManagement />} />
+          <Route path="roles" element={<RoleManagement />} />
+          <Route path="roles/:roleId" element={<RoleDetail />} />
+          <Route path="users" element={<UserManagement />} />
+        </Route>
       </Route>
     </Routes>
   );

@@ -40,7 +40,7 @@ def _safe_filename(name: str) -> str:
 
 def _system_actor() -> CurrentUser:
     profile = DataScopeProfile(scope=RoleDataScope.ALL, user_id=0, dept_id=None, custom_dept_ids=frozenset())
-    return CurrentUser(id=0, username="system", dept_id=None, permission_codes=frozenset(), data_scope=profile)
+    return CurrentUser(id=0, username="system", dept_id=None, permission_codes=frozenset(), menu_ids=frozenset(), data_scope=profile)
 
 
 def _load_actor_stub(db: Session, actor_id: int | None) -> CurrentUser | None:
@@ -50,7 +50,7 @@ def _load_actor_stub(db: Session, actor_id: int | None) -> CurrentUser | None:
     if user is None:
         return None
     profile = DataScopeProfile(scope=RoleDataScope.ALL, user_id=user.id, dept_id=user.department_id, custom_dept_ids=frozenset())
-    return CurrentUser(id=user.id, username=user.username, dept_id=user.department_id, permission_codes=frozenset(), data_scope=profile)
+    return CurrentUser(id=user.id, username=user.username, dept_id=user.department_id, permission_codes=frozenset(), menu_ids=frozenset(), data_scope=profile)
 
 
 def _guess_cycle(report_type: str, start_time: datetime | None, end_time: datetime | None) -> str:
@@ -426,4 +426,3 @@ def scan_report_auto_configs(db: Session, *, now: datetime | None = None) -> int
         triggered += 1
 
     return triggered
-

@@ -65,6 +65,7 @@ def load_actor_stub(db: Session, actor_id: int | None) -> CurrentUser | None:
         username=user.username,
         dept_id=user.department_id,
         permission_codes=frozenset(),
+        menu_ids=frozenset(),
         data_scope=profile,
     )
 
