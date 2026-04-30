@@ -14,6 +14,7 @@ from app.api.iam import router as iam_router
 from app.api.rbac import router as rbac_router
 from app.api.v1_compat import router as v1_compat_router
 from app.api.ai import router as ai_router
+from app.api.root_cause_kb import router as root_cause_kb_router
 
 
 api_router = APIRouter()
@@ -31,3 +32,4 @@ api_router.include_router(v1_compat_router)
 api_router.include_router(iam_router)
 api_router.include_router(rbac_router)
 api_router.include_router(ai_router)
+api_router.include_router(root_cause_kb_router)

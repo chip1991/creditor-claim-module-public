@@ -28,6 +28,7 @@ from app.models.system_config import SystemConfig
 from app.models.qa import QaRecord
 from app.models.report import Report, ReportAutoConfig, ReportCycle, ReportStatus
 from app.models.ai_config import AiAgent, AiAgentVersion, AiLlm
+from app.models.root_cause_kb import RootCauseKb
 
 __all__ = [
     "AuditLog",
@@ -35,6 +36,7 @@ __all__ = [
     "AiAgentVersion",
     "AiLlm",
     "ComplaintAnalysis",
+    "RootCauseKb",
     "Department",
     "DataCleanLog",
     "DataImportRowError",

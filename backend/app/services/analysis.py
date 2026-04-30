@@ -16,6 +16,7 @@ from app.db.session import SessionLocal
 from app.models.complaint_analysis import ComplaintAnalysis
 from app.models.data_center import DataRecord, DataStatus, DataType
 from app.models.rbac import RoleDataScope, User
+from app.models.root_cause_kb import RootCauseKb
 from app.models.task import TaskStatus
 from app.services.audit import create_audit_log
 from app.services.data_scope import DataScopeProfile
@@ -284,6 +285,54 @@ def _root_cause_templates(lv1: str, lv2: str) -> tuple[str, str, str]:
     return surface, "问题归因信息不足，需补充事实核验", "需完善问题分类与处置知识库"
 
 
+def _kb_split_keywords(raw: str | None) -> list[str]:
+    s = _norm_text(raw)
+    if not s:
+        return []
+    for ch in ["，", ";", "；", "\n", "\t"]:
+        s = s.replace(ch, ",")
+    parts = [p.strip() for p in s.split(",")]
+    return [p for p in parts if p]
+
+
+def _kb_best_for_level(db: Session, *, lv2: str, level: str, text: str, min_score: int) -> str | None:
+    candidates = (
+        db.execute(
+            select(RootCauseKb)
+            .where(
+                RootCauseKb.is_enabled.is_(True),
+                RootCauseKb.category_lv2 == lv2,
+                RootCauseKb.level == level,
+            )
+            .order_by(RootCauseKb.updated_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    if not candidates:
+        return None
+
+    scored: list[tuple[int, RootCauseKb]] = []
+    for c in candidates:
+        kws = _kb_split_keywords(c.keywords)
+        score = sum(_count_occurrences(text, kw) for kw in kws) if kws else 0
+        scored.append((score, c))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    if not scored:
+        return None
+    if scored[0][0] < min_score:
+        return None
+    return scored[0][1].content
+
+
+def _root_causes_from_kb(db: Session, *, lv1: str, lv2: str, text: str) -> tuple[str | None, str | None, str | None]:
+    min_score = 1
+    surface = _kb_best_for_level(db, lv2=lv2, level="surface", text=text, min_score=min_score)
+    direct = _kb_best_for_level(db, lv2=lv2, level="direct", text=text, min_score=min_score)
+    deep = _kb_best_for_level(db, lv2=lv2, level="deep", text=text, min_score=min_score)
+    return surface, direct, deep
+
+
 def _suggested_rectification(lv1: str, lv2: str, dept: str, risk: str, *, event_time: datetime | None) -> dict[str, str]:
     now = event_time or datetime.now(timezone.utc)
     days = 3 if risk == "高" else 7 if risk == "中" else 14
@@ -341,7 +390,11 @@ def analyze_complaint_record(db: Session, *, record: DataRecord) -> AnalysisResu
     repeated = _is_repeated_complaint(db, record=record, category_lv2=lv2)
     dept = _DEPT_BY_LV1.get(lv1, "项目管理部")
     risk = _risk_level(text, lv1, repeated)
-    surface, direct, deep = _root_cause_templates(lv1, lv2)
+    kb_surface, kb_direct, kb_deep = _root_causes_from_kb(db, lv1=lv1, lv2=lv2, text=text)
+    t_surface, t_direct, t_deep = _root_cause_templates(lv1, lv2)
+    surface = kb_surface or t_surface
+    direct = kb_direct or t_direct
+    deep = kb_deep or t_deep
     evidence = _extract_snippets(text, kws)
     confidence = _calc_confidence(score, text)
     model_version = settings.analysis_model_version
