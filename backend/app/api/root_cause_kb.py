@@ -36,8 +36,11 @@ def _kb_user(current_user: CurrentUser = Depends(require_admin_or_permissions("s
 
 
 @router.get("/kb/root-causes/categories", response_model=ApiResponse)
-def root_cause_kb_categories(current_user: CurrentUser = Depends(_kb_user)) -> ApiResponse:
-    return ApiResponse(data={"records": kb_categories()})
+def root_cause_kb_categories(
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(_kb_user),
+) -> ApiResponse:
+    return ApiResponse(data={"records": kb_categories(db=db)})
 
 
 @router.get("/kb/root-causes/page", response_model=ApiResponse)
@@ -147,4 +150,3 @@ def root_cause_kb_export(
     )
     db.commit()
     return FileResponse(path=path, filename="root_cause_kb.xlsx", media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-

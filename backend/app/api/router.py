@@ -15,6 +15,7 @@ from app.api.rbac import router as rbac_router
 from app.api.v1_compat import router as v1_compat_router
 from app.api.ai import router as ai_router
 from app.api.root_cause_kb import router as root_cause_kb_router
+from app.api.complaint_category import router as complaint_category_router
 
 
 api_router = APIRouter()
@@ -33,3 +34,4 @@ api_router.include_router(iam_router)
 api_router.include_router(rbac_router)
 api_router.include_router(ai_router)
 api_router.include_router(root_cause_kb_router)
+api_router.include_router(complaint_category_router)

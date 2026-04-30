@@ -14,6 +14,7 @@ from app.core.auth import CurrentUser
 from app.core.errors import AppError
 from app.models.root_cause_kb import RootCauseKb
 from app.services.audit import create_audit_log
+from app.models.complaint_category import ComplaintCategoryLv1, ComplaintCategoryLv2
 from app.services.analysis import _CATEGORY_LV2_BY_LV1
 
 
@@ -51,7 +52,23 @@ def _parse_enabled(v) -> bool:
     return True
 
 
-def kb_categories() -> list[dict]:
+def kb_categories(*, db: Session | None = None) -> list[dict]:
+    if db is not None:
+        rows = (
+            db.execute(
+                select(ComplaintCategoryLv1.name, ComplaintCategoryLv2.name)
+                .join(ComplaintCategoryLv2, ComplaintCategoryLv2.lv1_id == ComplaintCategoryLv1.id)
+                .where(ComplaintCategoryLv1.is_enabled.is_(True), ComplaintCategoryLv2.is_enabled.is_(True))
+                .order_by(ComplaintCategoryLv1.order_no.asc(), ComplaintCategoryLv2.order_no.asc())
+            )
+            .all()
+        )
+        if rows:
+            m: dict[str, list[str]] = {}
+            for lv1, lv2 in rows:
+                m.setdefault(lv1, []).append(lv2)
+            return [{"categoryLv1": lv1, "categoryLv2List": lv2s} for lv1, lv2s in m.items()]
+
     items = []
     for lv1, lv2s in _CATEGORY_LV2_BY_LV1.items():
         items.append({"categoryLv1": lv1, "categoryLv2List": list(lv2s)})
@@ -489,4 +506,3 @@ def kb_export_xlsx(
     path = os.path.join(out_dir, f"root_cause_kb_{ts}.xlsx")
     wb.save(path)
     return path
-

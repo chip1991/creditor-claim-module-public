@@ -14,6 +14,7 @@ from app.core.config import get_settings
 from app.core.errors import AppError
 from app.db.session import SessionLocal
 from app.models.complaint_analysis import ComplaintAnalysis
+from app.models.complaint_category import ComplaintCategoryLv1, ComplaintCategoryLv2
 from app.models.data_center import DataRecord, DataStatus, DataType
 from app.models.rbac import RoleDataScope, User
 from app.models.root_cause_kb import RootCauseKb
@@ -212,7 +213,40 @@ def _count_occurrences(text: str, kw: str) -> int:
     return text.count(kw)
 
 
-def _select_category(text: str) -> tuple[str, str, list[str], int]:
+def _split_keywords(raw: str | None) -> list[str]:
+    s = _norm_text(raw)
+    if not s:
+        return []
+    for ch in ["，", ";", "；", "\n", "\t"]:
+        s = s.replace(ch, ",")
+    parts = [p.strip() for p in s.split(",")]
+    return [p for p in parts if p]
+
+
+def _select_category(text: str, db: Session | None = None) -> tuple[str, str, list[str], int]:
+    if db is not None:
+        rows = (
+            db.execute(
+                select(ComplaintCategoryLv1.name, ComplaintCategoryLv2.name, ComplaintCategoryLv2.keywords)
+                .join(ComplaintCategoryLv2, ComplaintCategoryLv2.lv1_id == ComplaintCategoryLv1.id)
+                .where(ComplaintCategoryLv1.is_enabled.is_(True), ComplaintCategoryLv2.is_enabled.is_(True))
+                .order_by(ComplaintCategoryLv1.order_no.asc(), ComplaintCategoryLv2.order_no.asc())
+            )
+            .all()
+        )
+        if rows:
+            scores: list[tuple[int, int, str, str, list[str]]] = []
+            for lv1, lv2, keywords in rows:
+                kws = _split_keywords(keywords)
+                score = sum(_count_occurrences(text, kw) for kw in kws)
+                tie = len(kws)
+                scores.append((score, tie, lv1, lv2, kws))
+            scores.sort(key=lambda x: (x[0], x[1]), reverse=True)
+            best = scores[0] if scores else (0, 0, "其他类", "其他无法归类问题", [])
+            if best[0] <= 0:
+                return "其他类", "其他无法归类问题", [], 0
+            return best[2], best[3], best[4], best[0]
+
     scores: list[tuple[int, int, str, str, list[str]]] = []
     for lv1, lv2_list in _CATEGORY_LV2_BY_LV1.items():
         for lv2 in lv2_list:
@@ -386,7 +420,7 @@ def _is_repeated_complaint(db: Session, *, record: DataRecord, category_lv2: str
 def analyze_complaint_record(db: Session, *, record: DataRecord) -> AnalysisResult:
     settings = get_settings()
     text = _norm_text(record.cleaned_text) or _norm_text(record.raw_text)
-    lv1, lv2, kws, score = _select_category(text)
+    lv1, lv2, kws, score = _select_category(text, db=db)
     repeated = _is_repeated_complaint(db, record=record, category_lv2=lv2)
     dept = _DEPT_BY_LV1.get(lv1, "项目管理部")
     risk = _risk_level(text, lv1, repeated)
