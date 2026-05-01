@@ -45,7 +45,9 @@ const Sidebar = () => {
         { name: '根因知识库配置', path: '/system/knowledge', icon: <Settings size={16} /> },
         { name: '大语言模型配置', path: '/system/ai/llms', icon: <Settings size={16} /> },
         { name: '系统智能体配置', path: '/system/ai/agents', icon: <Settings size={16} /> },
-        { name: '权限中心', path: '/system/permission-center', icon: <Settings size={16} /> },
+        { name: '组织管理', path: '/system/permission-center/orgs', icon: <Settings size={16} /> },
+        { name: '角色管理', path: '/system/permission-center/roles', icon: <Settings size={16} /> },
+        { name: '用户管理', path: '/system/permission-center/users', icon: <Settings size={16} /> },
       ],
     },
   ];
