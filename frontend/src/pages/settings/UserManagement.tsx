@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Search, RotateCcw, Eye, Ban, ShieldCheck, Loader2 } from 'lucide-react';
+import { Search, RotateCcw, Eye, Ban, ShieldCheck, Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import axios from '../../lib/axios';
 import { useToast } from '../../components/ui/Toast';
@@ -30,10 +30,17 @@ interface RoleOption {
   isActive?: boolean;
 }
 
+interface UserFormState {
+  name: string;
+  empId: string;
+  phone: string;
+  orgId: string;
+  isActive: boolean;
+}
+
 export default function UserManagement() {
   const [data, setData] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [activeUser, setActiveUser] = useState<User | null>(null);
   const [total, setTotal] = useState(0);
   const [keywordInput, setKeywordInput] = useState('');
@@ -51,12 +58,23 @@ export default function UserManagement() {
   const [selectedRoleIds, setSelectedRoleIds] = useState<Set<number>>(new Set());
   const [roleKeywordInput, setRoleKeywordInput] = useState('');
   const [roleKeyword, setRoleKeyword] = useState('');
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [userSubmitting, setUserSubmitting] = useState(false);
+  const [userForm, setUserForm] = useState<UserFormState>({ name: '', empId: '', phone: '', orgId: '', isActive: true });
   const { showToast, ToastComponent } = useToast();
 
   const formatTime = (value: unknown) => {
     if (!value) return '-';
     if (typeof value === 'string') return value.replace('T', ' ').replace('Z', '');
     return String(value);
+  };
+
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error === 'object' && error !== null && 'response' in error) {
+      return (error as { response?: { data?: { msg?: string } } }).response?.data?.msg ?? fallback;
+    }
+    return fallback;
   };
 
   const orgOptions = useMemo(() => {
@@ -74,7 +92,7 @@ export default function UserManagement() {
   const fetchOrgTree = async () => {
     setOrgLoading(true);
     try {
-      const response = await axios.get('/iam/org/tree');
+      const response = await axios.get('/iam/org/tree', { params: { includeInactive: true } });
       setOrgTree((response.data?.tree || []) as OrgTreeNode[]);
     } catch (error) {
       console.error('Failed to fetch org tree:', error);
@@ -140,33 +158,20 @@ export default function UserManagement() {
     fetchUsers();
   }, [page, size, keyword, selectedOrgId, statusFilter]);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      const response = await axios.post('/iam/users/sync');
-      const payload = response.data || {};
-      const msg = payload.message ? `同步完成：${payload.message}` : '同步成功';
-      showToast(msg, payload.status === 'SUCCESS' ? 'success' : 'info');
-      fetchUsers();
-    } catch (error) {
-      console.error('Failed to sync users:', error);
-      showToast('同步失败', 'error');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const handleToggleStatus = async (id: number, currentStatus: string) => {
     const currentActive = currentStatus === '启用';
     const nextActive = !currentActive;
     const newStatus = nextActive ? '启用' : '禁用';
     try {
       await axios.put(`/iam/users/${id}/status`, { isActive: nextActive });
+      if (activeUser?.id === id) {
+        setActiveUser({ ...activeUser, status: newStatus, isActive: nextActive });
+      }
       showToast(`已${newStatus}该用户`, 'success');
       fetchUsers();
     } catch (error) {
       console.error('Failed to update status:', error);
-      showToast('状态更新失败', 'error');
+      showToast(getErrorMessage(error, '状态更新失败'), 'error');
     }
   };
 
@@ -270,6 +275,85 @@ export default function UserManagement() {
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
+  const resetUserForm = () => {
+    setEditingUser(null);
+    setUserForm({ name: '', empId: '', phone: '', orgId: '', isActive: true });
+    setUserModalOpen(false);
+  };
+
+  const openCreateModal = () => {
+    setEditingUser(null);
+    setUserForm({
+      name: '',
+      empId: '',
+      phone: '',
+      orgId: selectedOrgId ? String(selectedOrgId) : '',
+      isActive: true,
+    });
+    setUserModalOpen(true);
+  };
+
+  const openEditModal = (row: User) => {
+    setEditingUser(row);
+    setUserForm({
+      name: row.name,
+      empId: row.empId || '',
+      phone: row.phone || '',
+      orgId: row.orgId ? String(row.orgId) : '',
+      isActive: row.status === '启用',
+    });
+    setUserModalOpen(true);
+  };
+
+  const handleSaveUser = async () => {
+    const payload = {
+      name: userForm.name.trim(),
+      empId: userForm.empId.trim() || null,
+      phone: userForm.phone.trim() || null,
+      orgId: userForm.orgId ? Number(userForm.orgId) : null,
+      isActive: userForm.isActive,
+    };
+    if (!payload.name) {
+      showToast('请输入用户姓名', 'error');
+      return;
+    }
+
+    setUserSubmitting(true);
+    try {
+      const response = editingUser
+        ? await axios.put(`/iam/users/${editingUser.id}`, payload)
+        : await axios.post('/iam/users', payload);
+      const latestUser = mapUser(response.data || {});
+      if (activeUser?.id === latestUser.id) {
+        setActiveUser(latestUser);
+      }
+      showToast(editingUser ? '用户更新成功' : '用户创建成功', 'success');
+      resetUserForm();
+      await fetchUsers();
+    } catch (error) {
+      console.error('Failed to save user:', error);
+      showToast(getErrorMessage(error, editingUser ? '用户更新失败' : '用户创建失败'), 'error');
+    } finally {
+      setUserSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async (row: User) => {
+    const ok = window.confirm(`确认删除用户“${row.name}”吗？`);
+    if (!ok) return;
+    try {
+      await axios.delete(`/iam/users/${row.id}`);
+      if (activeUser?.id === row.id) {
+        setActiveUser(null);
+      }
+      showToast('用户删除成功', 'success');
+      await fetchUsers();
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      showToast(getErrorMessage(error, '用户删除失败'), 'error');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 relative">
       {ToastComponent}
@@ -320,7 +404,7 @@ export default function UserManagement() {
                     <div className="text-sm text-neutral-900">{activeUser.status || '-'}</div>
                   </div>
                   <div className="col-span-2">
-                    <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-1">最新同步时间</div>
+                    <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-1">更新时间</div>
                     <div className="text-sm font-mono text-neutral-600">{activeUser.syncTime || '-'}</div>
                   </div>
                 </div>
@@ -483,13 +567,13 @@ export default function UserManagement() {
           共检索到 <span className="font-semibold text-neutral-900">{total}</span> 条员工记录
         </div>
         <div className="flex gap-2">
-          <button 
-            onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-white bg-brand border border-brand rounded hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-white bg-brand border border-brand rounded hover:bg-brand-dark transition-colors shadow-sm"
           >
-            {syncing ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-            全量同步 IAM 用户
+            <Plus size={14} />
+            新建用户
           </button>
         </div>
       </div>
@@ -510,7 +594,7 @@ export default function UserManagement() {
                 <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">手机号</th>
                 <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">所属组织</th>
                 <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">状态</th>
-                <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">最新同步时间</th>
+                <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">更新时间</th>
                 <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider text-right whitespace-nowrap sticky right-0 bg-neutral-50/50 z-10 before:absolute before:inset-y-0 before:-left-4 before:w-4 before:bg-gradient-to-r before:from-transparent before:to-neutral-50/50">操作</th>
               </tr>
             </thead>
@@ -541,6 +625,12 @@ export default function UserManagement() {
                   <td className="px-6 py-4 text-sm text-right whitespace-nowrap sticky right-0 bg-white group-hover:bg-neutral-50 transition-colors z-10 before:absolute before:inset-y-0 before:-left-4 before:w-4 before:bg-gradient-to-r before:from-transparent before:to-white group-hover:before:to-neutral-50">
                     <div className="flex justify-end gap-3">
                       <button
+                        onClick={() => openEditModal(row)}
+                        className="flex items-center gap-1 text-neutral-500 hover:text-brand transition-colors"
+                      >
+                        <Pencil size={14} /> 编辑
+                      </button>
+                      <button
                         onClick={() => setActiveUser(row)}
                         className="flex items-center gap-1 text-neutral-500 hover:text-brand transition-colors"
                       >
@@ -551,6 +641,12 @@ export default function UserManagement() {
                         className={`flex items-center gap-1 transition-colors ${row.status === '启用' ? 'text-neutral-400 hover:text-red-500' : 'text-emerald-500 hover:text-emerald-600'}`}
                       >
                         <Ban size={14} /> {row.status === '启用' ? '禁用' : '启用'}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(row)}
+                        className="flex items-center gap-1 text-neutral-400 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={14} /> 删除
                       </button>
                     </div>
                   </td>
@@ -608,6 +704,103 @@ export default function UserManagement() {
           </div>
         </div>
       </div>
+
+      {userModalOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={resetUserForm} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-neutral-200 overflow-hidden"
+            >
+              <div className="px-6 py-5 border-b border-neutral-100">
+                <div className="text-lg font-semibold text-neutral-900">{editingUser ? '编辑用户' : '新建用户'}</div>
+                <div className="text-sm text-neutral-500 mt-1">
+                  {editingUser ? '修改用户基础信息，角色分配仍在详情抽屉中处理。' : '填写用户基础信息后创建账号。'}
+                </div>
+              </div>
+              <div className="p-6 flex flex-col gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">用户姓名</label>
+                  <input
+                    type="text"
+                    value={userForm.name}
+                    onChange={(e) => setUserForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="请输入用户姓名"
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">工号</label>
+                    <input
+                      type="text"
+                      value={userForm.empId}
+                      onChange={(e) => setUserForm((prev) => ({ ...prev, empId: e.target.value }))}
+                      placeholder="请输入工号"
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">手机号</label>
+                    <input
+                      type="text"
+                      value={userForm.phone}
+                      onChange={(e) => setUserForm((prev) => ({ ...prev, phone: e.target.value }))}
+                      placeholder="请输入手机号"
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">所属组织</label>
+                  <select
+                    value={userForm.orgId}
+                    disabled={orgLoading}
+                    onChange={(e) => setUserForm((prev) => ({ ...prev, orgId: e.target.value }))}
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow appearance-none text-neutral-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <option value="">请选择组织</option>
+                    {orgOptions.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {`${o.depth ? '—'.repeat(Math.min(6, o.depth)) + ' ' : ''}${o.name}${o.isActive === false ? '（禁用）' : ''}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label className="flex items-center gap-3 text-sm text-neutral-700">
+                  <input
+                    type="checkbox"
+                    checked={userForm.isActive}
+                    onChange={(e) => setUserForm((prev) => ({ ...prev, isActive: e.target.checked }))}
+                    className="h-4 w-4 rounded border-neutral-300 text-brand focus:ring-brand"
+                  />
+                  启用该用户
+                </label>
+              </div>
+              <div className="px-6 py-4 border-t border-neutral-100 bg-neutral-50 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={resetUserForm}
+                  className="px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-200 rounded-md hover:bg-neutral-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveUser}
+                  disabled={userSubmitting}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {userSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                  {editingUser ? '保存修改' : '确认创建'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

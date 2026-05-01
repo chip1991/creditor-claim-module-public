@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Building2, RefreshCw, Search, RotateCcw, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Building2, Search, RotateCcw, Loader2, ChevronDown, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import axios from '../../lib/axios';
 import { useToast } from '../../components/ui/Toast';
@@ -21,25 +21,41 @@ interface OrgTreeNode {
   children: OrgTreeNode[];
 }
 
+interface OrgFormState {
+  name: string;
+  parentId: string;
+  isActive: boolean;
+}
+
 export default function OrgManagement() {
   const [records, setRecords] = useState<OrgRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [tree, setTree] = useState<OrgTreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [treeLoading, setTreeLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
   const [selectedParentId, setSelectedParentId] = useState<number | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [editingOrg, setEditingOrg] = useState<OrgRecord | null>(null);
+  const [orgModalOpen, setOrgModalOpen] = useState(false);
+  const [orgSubmitting, setOrgSubmitting] = useState(false);
+  const [orgForm, setOrgForm] = useState<OrgFormState>({ name: '', parentId: '', isActive: true });
   const { showToast, ToastComponent } = useToast();
 
   const formatTime = (value: unknown) => {
     if (!value) return '-';
     if (typeof value === 'string') return value.replace('T', ' ').replace('Z', '');
     return String(value);
+  };
+
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error === 'object' && error !== null && 'response' in error) {
+      return (error as { response?: { data?: { msg?: string } } }).response?.data?.msg ?? fallback;
+    }
+    return fallback;
   };
 
   const collectExpandableIds = (nodes: OrgTreeNode[]) => {
@@ -57,7 +73,7 @@ export default function OrgManagement() {
   const fetchOrgTree = async () => {
     setTreeLoading(true);
     try {
-      const response = await axios.get('/iam/org/tree');
+      const response = await axios.get('/iam/org/tree', { params: { includeInactive: true } });
       const nextTree = (response.data?.tree || []) as OrgTreeNode[];
       setTree(nextTree);
       setExpandedIds(new Set(collectExpandableIds(nextTree)));
@@ -99,22 +115,6 @@ export default function OrgManagement() {
     fetchOrgPage();
   }, [page, size, keyword, selectedParentId]);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      const response = await axios.post('/iam/org/sync');
-      const payload = response.data || {};
-      const msg = payload.message ? `同步完成：${payload.message}` : '同步成功';
-      showToast(msg, payload.status === 'SUCCESS' ? 'success' : 'info');
-      await Promise.all([fetchOrgTree(), fetchOrgPage()]);
-    } catch (error) {
-      console.error('Failed to sync orgs:', error);
-      showToast('同步失败', 'error');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const parentNameMap = useMemo(() => {
     const map = new Map<number, string>();
     const walk = (nodes: OrgTreeNode[]) => {
@@ -125,6 +125,18 @@ export default function OrgManagement() {
     };
     walk(tree);
     return map;
+  }, [tree]);
+
+  const parentOptions = useMemo(() => {
+    const items: Array<{ id: number; name: string; depth: number; isActive: boolean }> = [];
+    const walk = (nodes: OrgTreeNode[], depth: number) => {
+      for (const node of nodes) {
+        items.push({ id: node.id, name: node.name, depth, isActive: node.isActive });
+        if (node.children?.length) walk(node.children, depth + 1);
+      }
+    };
+    walk(tree, 0);
+    return items;
   }, [tree]);
 
   const totalPages = Math.max(1, Math.ceil(total / size));
@@ -156,6 +168,74 @@ export default function OrgManagement() {
       else next.add(id);
       return next;
     });
+  };
+
+  const resetOrgForm = () => {
+    setOrgForm({ name: '', parentId: '', isActive: true });
+    setEditingOrg(null);
+    setOrgModalOpen(false);
+  };
+
+  const openCreateModal = () => {
+    setEditingOrg(null);
+    setOrgForm({ name: '', parentId: selectedParentId ? String(selectedParentId) : '', isActive: true });
+    setOrgModalOpen(true);
+  };
+
+  const openEditModal = (row: OrgRecord) => {
+    setEditingOrg(row);
+    setOrgForm({
+      name: row.name,
+      parentId: row.parentId ? String(row.parentId) : '',
+      isActive: row.isActive,
+    });
+    setOrgModalOpen(true);
+  };
+
+  const handleSaveOrg = async () => {
+    const payload = {
+      name: orgForm.name.trim(),
+      parentId: orgForm.parentId ? Number(orgForm.parentId) : null,
+      isActive: orgForm.isActive,
+    };
+    if (!payload.name) {
+      showToast('请输入组织名称', 'error');
+      return;
+    }
+
+    setOrgSubmitting(true);
+    try {
+      if (editingOrg) {
+        await axios.put(`/iam/org/${editingOrg.id}`, payload);
+        showToast('组织更新成功', 'success');
+      } else {
+        await axios.post('/iam/org', payload);
+        showToast('组织创建成功', 'success');
+      }
+      resetOrgForm();
+      await Promise.all([fetchOrgTree(), fetchOrgPage()]);
+    } catch (error) {
+      console.error('Failed to save org:', error);
+      showToast(getErrorMessage(error, editingOrg ? '组织更新失败' : '组织创建失败'), 'error');
+    } finally {
+      setOrgSubmitting(false);
+    }
+  };
+
+  const handleDeleteOrg = async (row: OrgRecord) => {
+    const ok = window.confirm(`确认删除组织“${row.name}”吗？`);
+    if (!ok) return;
+    try {
+      await axios.delete(`/iam/org/${row.id}`);
+      if (selectedParentId === row.id) {
+        setSelectedParentId(null);
+      }
+      showToast('组织删除成功', 'success');
+      await Promise.all([fetchOrgTree(), fetchOrgPage()]);
+    } catch (error) {
+      console.error('Failed to delete org:', error);
+      showToast(getErrorMessage(error, '组织删除失败'), 'error');
+    }
   };
 
   const renderTreeNodes = (nodes: OrgTreeNode[], depth: number) => {
@@ -247,13 +327,13 @@ export default function OrgManagement() {
           共检索到 <span className="font-semibold text-neutral-900">{total}</span> 个组织机构
         </div>
         <div className="flex gap-2">
-          <button 
-            onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-white bg-brand border border-brand rounded hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-white bg-brand border border-brand rounded hover:bg-brand-dark transition-colors shadow-sm"
           >
-            {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-            同步组织架构树
+            <Plus size={14} />
+            新建组织
           </button>
         </div>
       </div>
@@ -301,6 +381,7 @@ export default function OrgManagement() {
                     <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">上级组织</th>
                     <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">状态</th>
                     <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">更新时间</th>
+                    <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider text-right whitespace-nowrap sticky right-0 bg-neutral-50/50 z-10 before:absolute before:inset-y-0 before:-left-4 before:w-4 before:bg-gradient-to-r before:from-transparent before:to-neutral-50/50">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
@@ -327,11 +408,31 @@ export default function OrgManagement() {
                       <td className="px-6 py-4 text-sm font-mono text-neutral-400 whitespace-nowrap">
                         {formatTime(row.updatedAt || row.createdAt)}
                       </td>
+                      <td className="px-6 py-4 text-sm text-right whitespace-nowrap sticky right-0 bg-white group-hover:bg-neutral-50 transition-colors z-10 before:absolute before:inset-y-0 before:-left-4 before:w-4 before:bg-gradient-to-r before:from-transparent before:to-white group-hover:before:to-neutral-50">
+                        <div className="flex justify-end gap-3">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(row)}
+                            className="flex items-center gap-1 text-neutral-500 hover:text-brand transition-colors"
+                          >
+                            <Pencil size={14} />
+                            编辑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteOrg(row)}
+                            className="flex items-center gap-1 text-neutral-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                            删除
+                          </button>
+                        </div>
+                      </td>
                     </motion.tr>
                   ))}
                   {!loading && records.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-6 py-8 text-center text-sm text-neutral-500">
+                      <td colSpan={5} className="px-6 py-8 text-center text-sm text-neutral-500">
                         暂无数据
                       </td>
                     </tr>
@@ -386,6 +487,80 @@ export default function OrgManagement() {
           </div>
         </div>
       </div>
+
+      {orgModalOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={resetOrgForm} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-neutral-200 overflow-hidden"
+            >
+              <div className="px-6 py-5 border-b border-neutral-100">
+                <div className="text-lg font-semibold text-neutral-900">{editingOrg ? '编辑组织' : '新建组织'}</div>
+                <div className="text-sm text-neutral-500 mt-1">
+                  {editingOrg ? '修改组织信息并保存。' : '填写组织信息后创建新组织。'}
+                </div>
+              </div>
+              <div className="p-6 flex flex-col gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">组织名称</label>
+                  <input
+                    type="text"
+                    value={orgForm.name}
+                    onChange={(e) => setOrgForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="请输入组织名称"
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">上级组织</label>
+                  <select
+                    value={orgForm.parentId}
+                    onChange={(e) => setOrgForm((prev) => ({ ...prev, parentId: e.target.value }))}
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow appearance-none text-neutral-700"
+                  >
+                    <option value="">无上级组织</option>
+                    {parentOptions.map((option) => (
+                      <option key={option.id} value={option.id} disabled={editingOrg?.id === option.id}>
+                        {`${option.depth ? '—'.repeat(Math.min(6, option.depth)) + ' ' : ''}${option.name}${option.isActive ? '' : '（禁用）'}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label className="flex items-center gap-3 text-sm text-neutral-700">
+                  <input
+                    type="checkbox"
+                    checked={orgForm.isActive}
+                    onChange={(e) => setOrgForm((prev) => ({ ...prev, isActive: e.target.checked }))}
+                    className="h-4 w-4 rounded border-neutral-300 text-brand focus:ring-brand"
+                  />
+                  启用该组织
+                </label>
+              </div>
+              <div className="px-6 py-4 border-t border-neutral-100 bg-neutral-50 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={resetOrgForm}
+                  className="px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-200 rounded-md hover:bg-neutral-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveOrg}
+                  disabled={orgSubmitting}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {orgSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                  {editingOrg ? '保存修改' : '确认创建'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

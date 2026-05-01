@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.core.auth import CurrentUser, get_current_user
 from app.db.session import get_db
 from app.main import create_app
+from app.models.audit import AuditLog
 from app.models.rbac import Department, Menu, Role, RoleDataScope, User
 from app.services.data_scope import DataScopeProfile
 
@@ -36,6 +37,15 @@ def _client(db, current: CurrentUser) -> TestClient:
     app.dependency_overrides[get_db] = _get_db
     app.dependency_overrides[get_current_user] = lambda: current
     return TestClient(app)
+
+
+def _audit_actions(db, *, entity_type: str, entity_id: str) -> list[str]:
+    stmt = (
+        select(AuditLog.action)
+        .where(AuditLog.entity_type == entity_type, AuditLog.entity_id == entity_id)
+        .order_by(AuditLog.id.asc())
+    )
+    return list(db.execute(stmt).scalars().all())
 
 
 def test_iam_org_page_pagination_and_permission(db):
@@ -160,3 +170,173 @@ def test_v1_compat_get_and_410(db):
     resp = client.post("/api/v1/users")
     assert resp.status_code == 410
     assert resp.json()["code"] == "MIGRATED"
+
+
+def test_iam_org_crud_delete_block_and_audit(db):
+    dept_id = db.execute(select(Department.id).order_by(Department.id.asc()).limit(1)).scalar_one()
+    operator = User(username="org_admin", password_hash="", is_active=True, department_id=dept_id)
+    db.add(operator)
+    db.commit()
+    db.refresh(operator)
+
+    client = _client(db, _current_user(operator, permission_codes={"iam:org:read", "iam:org:write"}))
+
+    resp = client.post("/api/iam/org", json={"name": "总部", "isActive": True})
+    assert resp.status_code == 200
+    root_org_id = resp.json()["data"]["id"]
+
+    resp = client.post("/api/iam/org", json={"name": "总部-客服", "parentId": root_org_id, "isActive": True})
+    assert resp.status_code == 200
+    child_org_id = resp.json()["data"]["id"]
+
+    resp = client.delete(f"/api/iam/org/{root_org_id}")
+    assert resp.status_code == 400
+    assert resp.json()["msg"] == "当前组织下仍有下级组织，删除前请先清理"
+
+    child_user = User(username="org_user", password_hash="", is_active=True, department_id=child_org_id)
+    db.add(child_user)
+    db.commit()
+
+    resp = client.delete(f"/api/iam/org/{child_org_id}")
+    assert resp.status_code == 400
+    assert resp.json()["msg"] == "当前组织下仍有关联用户，删除前请先清理"
+
+    child_user.department_id = None
+    db.add(child_user)
+    db.commit()
+
+    resp = client.put(f"/api/iam/org/{child_org_id}", json={"name": "总部-客服一部", "isActive": False})
+    assert resp.status_code == 200
+    assert resp.json()["data"]["name"] == "总部-客服一部"
+    assert resp.json()["data"]["isActive"] is False
+
+    resp = client.get(f"/api/iam/org/{child_org_id}")
+    assert resp.status_code == 200
+    assert resp.json()["data"]["parentId"] == root_org_id
+
+    resp = client.delete(f"/api/iam/org/{child_org_id}")
+    assert resp.status_code == 200
+    assert resp.json()["data"] == {"id": child_org_id, "deleted": True}
+
+    resp = client.delete(f"/api/iam/org/{root_org_id}")
+    assert resp.status_code == 200
+    assert resp.json()["data"] == {"id": root_org_id, "deleted": True}
+
+    assert _audit_actions(db, entity_type="iam_org", entity_id=str(child_org_id)) == [
+        "IAM_ORG_CREATE",
+        "IAM_ORG_UPDATE",
+        "IAM_ORG_DELETE",
+    ]
+    assert _audit_actions(db, entity_type="iam_org", entity_id=str(root_org_id)) == [
+        "IAM_ORG_CREATE",
+        "IAM_ORG_DELETE",
+    ]
+
+
+def test_iam_role_crud_delete_block_and_audit(db):
+    dept_id = db.execute(select(Department.id).order_by(Department.id.asc()).limit(1)).scalar_one()
+    operator = User(username="role_admin", password_hash="", is_active=True, department_id=dept_id)
+    assignee = User(username="role_user", password_hash="", is_active=True, department_id=dept_id)
+    db.add_all([operator, assignee])
+    db.commit()
+    db.refresh(operator)
+    db.refresh(assignee)
+
+    client = _client(db, _current_user(operator, permission_codes={"iam:role:read", "iam:role:write"}))
+
+    resp = client.post("/api/iam/roles", json={"name": "值班主管", "code": "duty_manager", "desc": "值班角色", "isActive": True})
+    assert resp.status_code == 200
+    role_id = resp.json()["data"]["id"]
+    assert resp.json()["data"]["desc"] == "值班角色"
+    assert resp.json()["data"]["code"] == "duty_manager"
+
+    role = db.get(Role, role_id)
+    assignee.roles.append(role)
+    db.add(assignee)
+    db.commit()
+
+    resp = client.delete(f"/api/iam/roles/{role_id}")
+    assert resp.status_code == 400
+    assert resp.json()["msg"] == "当前角色已分配给用户，删除前请先解除关联"
+
+    assignee.roles = []
+    db.add(assignee)
+    db.commit()
+
+    resp = client.put(f"/api/iam/roles/{role_id}", json={"name": "值班经理", "code": "duty_lead", "desc": "更新后描述", "isActive": False})
+    assert resp.status_code == 200
+    assert resp.json()["data"]["name"] == "值班经理"
+    assert resp.json()["data"]["key"] == "duty_lead"
+    assert resp.json()["data"]["desc"] == "更新后描述"
+    assert resp.json()["data"]["isActive"] is False
+
+    resp = client.get(f"/api/iam/roles/{role_id}")
+    assert resp.status_code == 200
+    assert resp.json()["data"]["users"] == 0
+
+    resp = client.delete(f"/api/iam/roles/{role_id}")
+    assert resp.status_code == 200
+    assert resp.json()["data"] == {"id": role_id, "deleted": True}
+
+    assert _audit_actions(db, entity_type="iam_role", entity_id=str(role_id)) == [
+        "IAM_ROLE_CREATE",
+        "IAM_ROLE_UPDATE",
+        "IAM_ROLE_DELETE",
+    ]
+
+
+def test_iam_user_crud_and_audit(db):
+    dept_ids = list(db.execute(select(Department.id).order_by(Department.id.asc()).limit(2)).scalars().all())
+    operator = User(username="user_admin", password_hash="", is_active=True, department_id=dept_ids[0])
+    role = Role(name="巡检员", key="inspector", is_active=True, data_scope=RoleDataScope.SELF)
+    db.add_all([operator, role])
+    db.commit()
+    db.refresh(operator)
+    db.refresh(role)
+
+    client = _client(db, _current_user(operator, permission_codes={"iam:user:read", "iam:user:write", "rbac:user:read"}))
+
+    resp = client.post(
+        "/api/iam/users",
+        json={"name": "张三", "empId": "EMP001", "phone": "13800000001", "orgId": dept_ids[0], "isActive": True},
+    )
+    assert resp.status_code == 200
+    user_id = resp.json()["data"]["id"]
+    assert resp.json()["data"]["name"] == "张三"
+    assert resp.json()["data"]["empId"] == "EMP001"
+    assert resp.json()["data"]["orgId"] == dept_ids[0]
+    assert resp.json()["data"]["status"] == "启用"
+
+    created_user = db.get(User, user_id)
+    created_user.roles.append(role)
+    db.add(created_user)
+    db.commit()
+
+    resp = client.get(f"/api/iam/users/{user_id}")
+    assert resp.status_code == 200
+    assert resp.json()["data"]["roleIds"] == [role.id]
+
+    resp = client.put(
+        f"/api/iam/users/{user_id}",
+        json={"name": "李四", "empId": "EMP002", "phone": "13800000002", "orgId": dept_ids[1], "isActive": False},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"]["name"] == "李四"
+    assert resp.json()["data"]["empId"] == "EMP002"
+    assert resp.json()["data"]["phone"] == "13800000002"
+    assert resp.json()["data"]["orgId"] == dept_ids[1]
+    assert resp.json()["data"]["status"] == "禁用"
+
+    resp = client.get("/api/iam/users/page?page=1&size=20&keyword=EMP002")
+    assert resp.status_code == 200
+    assert any(item["id"] == user_id for item in resp.json()["data"]["records"])
+
+    resp = client.delete(f"/api/iam/users/{user_id}")
+    assert resp.status_code == 200
+    assert resp.json()["data"] == {"id": user_id, "deleted": True}
+
+    assert _audit_actions(db, entity_type="iam_user", entity_id=str(user_id)) == [
+        "IAM_USER_CREATE",
+        "IAM_USER_UPDATE",
+        "IAM_USER_DELETE",
+    ]

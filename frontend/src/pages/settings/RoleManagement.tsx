@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, RotateCcw, ShieldCheck, Settings, Loader2 } from 'lucide-react';
+import { Search, RotateCcw, Settings, Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import axios from '../../lib/axios';
@@ -11,27 +11,44 @@ interface Role {
   code: string;
   desc?: string;
   users?: number;
-  syncTime?: string;
+  isActive?: boolean;
   updatedAt?: string | null;
   createdAt?: string | null;
+}
+
+interface RoleFormState {
+  name: string;
+  code: string;
+  desc: string;
+  isActive: boolean;
 }
 
 export default function RoleManagement() {
   const navigate = useNavigate();
   const [data, setData] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [total, setTotal] = useState(0);
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [roleSubmitting, setRoleSubmitting] = useState(false);
+  const [roleForm, setRoleForm] = useState<RoleFormState>({ name: '', code: '', desc: '', isActive: true });
   const { showToast, ToastComponent } = useToast();
 
   const formatTime = (value: unknown) => {
     if (!value) return '-';
     if (typeof value === 'string') return value.replace('T', ' ').replace('Z', '');
     return String(value);
+  };
+
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error === 'object' && error !== null && 'response' in error) {
+      return (error as { response?: { data?: { msg?: string } } }).response?.data?.msg ?? fallback;
+    }
+    return fallback;
   };
 
   const fetchRoles = async () => {
@@ -54,7 +71,7 @@ export default function RoleManagement() {
           code: String(r.code ?? r.key ?? ''),
           desc: r.desc ?? undefined,
           users: typeof r.users === 'number' ? r.users : undefined,
-          syncTime: r.syncTime ?? undefined,
+          isActive: typeof r.isActive === 'boolean' ? r.isActive : undefined,
           updatedAt: r.updatedAt ?? null,
           createdAt: r.createdAt ?? null,
         }))
@@ -71,22 +88,6 @@ export default function RoleManagement() {
     fetchRoles();
   }, [page, size, keyword]);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      const response = await axios.post('/iam/roles/sync');
-      const payload = response.data || {};
-      const msg = payload.message ? `同步完成：${payload.message}` : '同步成功';
-      showToast(msg, payload.status === 'SUCCESS' ? 'success' : 'info');
-      fetchRoles();
-    } catch (error) {
-      console.error('同步角色失败:', error);
-      showToast('同步失败', 'error');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const totalPages = Math.max(1, Math.ceil(total / size));
   const canPrev = page > 1;
   const canNext = page < totalPages;
@@ -101,6 +102,77 @@ export default function RoleManagement() {
     setKeyword('');
     setPage(1);
     setSize(20);
+  };
+
+  const resetRoleForm = () => {
+    setEditingRole(null);
+    setRoleForm({ name: '', code: '', desc: '', isActive: true });
+    setRoleModalOpen(false);
+  };
+
+  const openCreateModal = () => {
+    setEditingRole(null);
+    setRoleForm({ name: '', code: '', desc: '', isActive: true });
+    setRoleModalOpen(true);
+  };
+
+  const openEditModal = (row: Role) => {
+    setEditingRole(row);
+    setRoleForm({
+      name: row.name,
+      code: row.code,
+      desc: row.desc || '',
+      isActive: row.isActive ?? true,
+    });
+    setRoleModalOpen(true);
+  };
+
+  const handleSaveRole = async () => {
+    const payload = {
+      name: roleForm.name.trim(),
+      code: roleForm.code.trim(),
+      desc: roleForm.desc.trim() || null,
+      isActive: roleForm.isActive,
+    };
+    if (!payload.name) {
+      showToast('请输入角色名称', 'error');
+      return;
+    }
+    if (!payload.code) {
+      showToast('请输入角色编码', 'error');
+      return;
+    }
+
+    setRoleSubmitting(true);
+    try {
+      if (editingRole) {
+        await axios.put(`/iam/roles/${editingRole.id}`, payload);
+        showToast('角色更新成功', 'success');
+      } else {
+        await axios.post('/iam/roles', payload);
+        showToast('角色创建成功', 'success');
+      }
+      resetRoleForm();
+      await fetchRoles();
+    } catch (error) {
+      console.error('Failed to save role:', error);
+      showToast(getErrorMessage(error, editingRole ? '角色更新失败' : '角色创建失败'), 'error');
+    } finally {
+      setRoleSubmitting(false);
+    }
+  };
+
+  const handleDeleteRole = async (row: Role) => {
+    const ok = window.confirm(`确认删除角色“${row.name}”吗？`);
+    if (!ok) return;
+    try {
+      await axios.delete(`/iam/roles/${row.id}`);
+      showToast('角色删除成功', 'success');
+      await fetchRoles();
+    } catch (error) {
+      console.error('Failed to delete role:', error);
+      showToast(getErrorMessage(error, '角色删除失败'), 'error');
+    }
   };
 
   return (
@@ -149,13 +221,13 @@ export default function RoleManagement() {
           共检索到 <span className="font-semibold text-neutral-900">{total}</span> 个角色
         </div>
         <div className="flex gap-2">
-          <button 
-            onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-white bg-brand border border-brand rounded hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-white bg-brand border border-brand rounded hover:bg-brand-dark transition-colors shadow-sm"
           >
-            {syncing ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-            同步 IAM 岗位
+            <Plus size={14} />
+            新建角色
           </button>
         </div>
       </div>
@@ -174,8 +246,9 @@ export default function RoleManagement() {
                 <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">角色名称</th>
                 <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">角色编码</th>
                 <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">角色描述</th>
+                <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">状态</th>
                 <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">关联用户数</th>
-                <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">最新同步时间</th>
+                <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider whitespace-nowrap">更新时间</th>
                 <th className="px-6 py-4 text-xs font-medium text-neutral-500 uppercase tracking-wider text-right whitespace-nowrap sticky right-0 bg-neutral-50/50 z-10 before:absolute before:inset-y-0 before:-left-4 before:w-4 before:bg-gradient-to-r before:from-transparent before:to-neutral-50/50">操作</th>
               </tr>
             </thead>
@@ -197,6 +270,11 @@ export default function RoleManagement() {
                   <td className="px-6 py-4 text-sm font-mono text-neutral-500 whitespace-nowrap">{row.code}</td>
                   <td className="px-6 py-4 text-sm text-neutral-600 whitespace-nowrap">{row.desc || '-'}</td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-[11px] font-medium border ${row.isActive === false ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                      {row.isActive === false ? '禁用' : '启用'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm whitespace-nowrap">
                     {typeof row.users === 'number' ? (
                       <span className="inline-flex items-center px-2 py-1 rounded-md text-[11px] font-medium border bg-brand-light text-brand-dark border-brand-100">
                         {row.users} 人
@@ -206,15 +284,27 @@ export default function RoleManagement() {
                     )}
                   </td>
                   <td className="px-6 py-4 text-sm font-mono text-neutral-400 whitespace-nowrap">
-                    {row.syncTime ? formatTime(row.syncTime) : formatTime(row.updatedAt || row.createdAt)}
+                    {formatTime(row.updatedAt || row.createdAt)}
                   </td>
                   <td className="px-6 py-4 text-sm text-right whitespace-nowrap sticky right-0 bg-white group-hover:bg-neutral-50 transition-colors z-10 before:absolute before:inset-y-0 before:-left-4 before:w-4 before:bg-gradient-to-r before:from-transparent before:to-white group-hover:before:to-neutral-50">
                     <div className="flex justify-end gap-3">
+                      <button
+                        onClick={() => openEditModal(row)}
+                        className="flex items-center gap-1 text-neutral-500 hover:text-brand transition-colors"
+                      >
+                        <Pencil size={14} /> 编辑
+                      </button>
                       <button
                         onClick={() => navigate(`/system/permission-center/roles/${row.id}`, { state: { role: row } })}
                         className="flex items-center gap-1 text-neutral-500 hover:text-brand transition-colors"
                       >
                         <Settings size={14} /> 菜单权限配置
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRole(row)}
+                        className="flex items-center gap-1 text-neutral-400 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={14} /> 删除
                       </button>
                     </div>
                   </td>
@@ -222,7 +312,7 @@ export default function RoleManagement() {
               ))}
               {!loading && data.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-neutral-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-neutral-500">
                     暂无数据
                   </td>
                 </tr>
@@ -272,6 +362,85 @@ export default function RoleManagement() {
           </div>
         </div>
       </div>
+
+      {roleModalOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={resetRoleForm} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-neutral-200 overflow-hidden"
+            >
+              <div className="px-6 py-5 border-b border-neutral-100">
+                <div className="text-lg font-semibold text-neutral-900">{editingRole ? '编辑角色' : '新建角色'}</div>
+                <div className="text-sm text-neutral-500 mt-1">
+                  {editingRole ? '修改角色基础信息，权限配置仍在详情页维护。' : '先创建角色，再进入详情页配置菜单权限、接口权限和数据范围。'}
+                </div>
+              </div>
+              <div className="p-6 flex flex-col gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">角色名称</label>
+                  <input
+                    type="text"
+                    value={roleForm.name}
+                    onChange={(e) => setRoleForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="请输入角色名称"
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">角色编码</label>
+                  <input
+                    type="text"
+                    value={roleForm.code}
+                    onChange={(e) => setRoleForm((prev) => ({ ...prev, code: e.target.value }))}
+                    placeholder="请输入角色编码"
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">角色描述</label>
+                  <textarea
+                    value={roleForm.desc}
+                    onChange={(e) => setRoleForm((prev) => ({ ...prev, desc: e.target.value }))}
+                    placeholder="请输入角色描述"
+                    rows={4}
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-shadow resize-none"
+                  />
+                </div>
+                <label className="flex items-center gap-3 text-sm text-neutral-700">
+                  <input
+                    type="checkbox"
+                    checked={roleForm.isActive}
+                    onChange={(e) => setRoleForm((prev) => ({ ...prev, isActive: e.target.checked }))}
+                    className="h-4 w-4 rounded border-neutral-300 text-brand focus:ring-brand"
+                  />
+                  启用该角色
+                </label>
+              </div>
+              <div className="px-6 py-4 border-t border-neutral-100 bg-neutral-50 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={resetRoleForm}
+                  className="px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-200 rounded-md hover:bg-neutral-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveRole}
+                  disabled={roleSubmitting}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {roleSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                  {editingRole ? '保存修改' : '确认创建'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

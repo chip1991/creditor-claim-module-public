@@ -1,7 +1,7 @@
 # 部门与权限配置改造 Spec
 
 ## Why
-当前“组织/角色/用户”三页以同步与列表展示为主，搜索/分页未落地，且缺少“角色权限配置”“用户分配角色”“数据范围控制”等闭环能力，无法支撑完整的 RBAC 管理与审计。
+当前“组织/角色/用户”三页虽然已经具备基础查询与部分配置能力，但页面主流程仍偏向“同步后查看”，缺少独立的新增、编辑、删除闭环，无法满足后台日常维护场景。权限中心需要从“同步型管理台”升级为“可直接维护主数据的后台管理模块”。
 
 ## What Changes
 - 新增“权限中心”信息架构：组织管理、角色管理（菜单权限/接口权限/数据范围）、用户管理（分配角色/启停）。
@@ -9,12 +9,14 @@
 - 补齐搜索/筛选/分页的真实交互与接口参数对齐，移除静态分页占位。
 - 引入“角色三件套”配置模型：菜单权限 + 接口权限码 + 数据范围（SELF/DEPT/DEPT_AND_CHILD/CUSTOM/ALL）。
 - 所有配置变更与敏感操作写入审计日志（audit_log），满足可追溯要求。
+- 将组织管理、角色管理、用户管理从“同步驱动”改为“独立增删改驱动”，页面主操作改为新增、编辑、删除、启停/分配等业务动作。
+- 移除三个页面中的主“同步”按钮与依赖同步结果的交互文案；如后端仍保留同步能力，仅作为内部维护接口，不再作为页面主流程。 **BREAKING**：页面操作入口与接口职责发生调整。
 
 ## Impact
-- Affected specs: RBAC 权限管理、组织树同步、用户同步与启停、角色授权（菜单/接口/数据范围）、审计与可追溯、前后端接口契约迁移。
+- Affected specs: RBAC 权限管理、组织主数据维护、角色主数据维护、用户主数据维护、用户启停、角色授权（菜单/接口/数据范围）、审计与可追溯、前后端接口契约迁移。
 - Affected code:
   - 前端：OrgManagement、RoleManagement、UserManagement 与系统设置路由/菜单入口
-  - 后端：新增 IAM/RBAC 相关 API（或在现有 RBAC 基础上扩展），兼容前端调用方式
+  - 后端：IAM/RBAC 相关 API、组织/角色/用户数据模型与校验逻辑、审计记录
 
 ## ADDED Requirements
 
@@ -26,24 +28,56 @@
 - **THEN** 配置被保存并立即生效，且产生审计记录
 
 ### Requirement: 组织管理（Org/Department）
-系统 SHALL 支持组织数据的查询与同步，并提供树形结构能力用于数据范围配置与筛选。
+系统 SHALL 支持组织数据的新增、编辑、删除、查询，并提供树形结构能力用于数据范围配置与筛选。
 
-#### Scenario: 同步组织树
-- **WHEN** 管理员触发组织同步
-- **THEN** 系统更新组织树并返回同步结果（成功/失败/更新时间），写入审计
+#### Scenario: 新增下级组织
+- **WHEN** 管理员在某个组织下创建新的下级组织并保存
+- **THEN** 新组织出现在组织树和列表中，父子关系正确，且写入审计
+
+#### Scenario: 删除组织
+- **WHEN** 管理员删除一个没有下级组织且没有关联用户的组织
+- **THEN** 系统删除该组织并从树与列表中移除，且写入审计
+
+#### Scenario: 删除受引用组织被拦截
+- **WHEN** 管理员尝试删除仍有下级组织或仍有关联用户的组织
+- **THEN** 系统拒绝删除并返回中文提示，说明需先清理关联关系
 
 ### Requirement: 角色管理（Role）
-系统 SHALL 支持角色列表查询、同步 IAM 岗位（可选）、以及角色三件套配置：
+系统 SHALL 支持角色列表查询、角色新增、角色编辑、角色删除，以及角色三件套配置：
 1) 菜单权限（menu resources）
 2) 接口权限码（permission codes）
 3) 数据范围（data scope）
+
+#### Scenario: 新增角色
+- **WHEN** 管理员创建角色并填写角色名称、角色编码、描述等信息
+- **THEN** 角色出现在角色列表中，并可立即进入详情页配置菜单权限、接口权限和数据范围
+
+#### Scenario: 删除角色
+- **WHEN** 管理员删除一个未分配给任何用户的角色
+- **THEN** 系统删除该角色并从列表中移除，且写入审计
+
+#### Scenario: 删除已分配角色被拦截
+- **WHEN** 管理员尝试删除仍分配给用户的角色
+- **THEN** 系统拒绝删除并返回中文提示，说明需先解除用户关联
 
 #### Scenario: 配置角色数据范围
 - **WHEN** 管理员将角色数据范围设置为 CUSTOM 并选择部门集合
 - **THEN** 保存成功，后续该角色用户仅能访问所选部门范围数据
 
 ### Requirement: 用户管理（User）
-系统 SHALL 支持用户列表查询、同步 IAM 用户（可选）、启用/禁用，并支持为用户分配角色（多选）。
+系统 SHALL 支持用户列表查询、用户新增、用户编辑、用户删除、启用/禁用，并支持为用户分配角色（多选）。
+
+#### Scenario: 新增用户
+- **WHEN** 管理员创建用户并填写姓名、工号、手机号、所属组织等必填信息
+- **THEN** 新用户出现在列表中，并可继续分配角色
+
+#### Scenario: 编辑用户
+- **WHEN** 管理员修改用户的基础信息并保存
+- **THEN** 列表与详情展示最新信息，且写入审计
+
+#### Scenario: 删除用户
+- **WHEN** 管理员删除用户
+- **THEN** 系统删除该用户并从列表中移除，且写入审计
 
 #### Scenario: 分配角色
 - **WHEN** 管理员为用户勾选多个角色并保存
@@ -66,12 +100,36 @@
 - `GET /api/iam/org/page`：组织分页列表
   - Query：`page, size, keyword?, parentId?, isActive?`
   - Response：`{ total: number, records: OrgListItem[] }`
+- `POST /api/iam/org`
+  - Body：`{ name: string, parentId?: number | null, isActive?: boolean }`
+  - Response：`{ id: number, ... }`
+- `PUT /api/iam/org/{orgId}`
+  - Body：`{ name?: string, parentId?: number | null, isActive?: boolean }`
+  - Response：`{ id: number, ... }`
+- `DELETE /api/iam/org/{orgId}`
+  - Response：`{ id: number, deleted: true }`
 - `GET /api/iam/roles/page`：角色分页列表（主数据）
   - Query：`page, size, keyword?, isActive?`
   - Response：`{ total: number, records: RoleListItem[] }`
+- `POST /api/iam/roles`
+  - Body：`{ name: string, code: string, desc?: string, isActive?: boolean }`
+  - Response：`{ id: number, ... }`
+- `PUT /api/iam/roles/{roleId}`
+  - Body：`{ name?: string, code?: string, desc?: string, isActive?: boolean }`
+  - Response：`{ id: number, ... }`
+- `DELETE /api/iam/roles/{roleId}`
+  - Response：`{ id: number, deleted: true }`
 - `GET /api/iam/users/page`：用户分页列表
   - Query：`page, size, keyword?, deptId?, isActive?`
   - Response：`{ total: number, records: UserListItem[] }`
+- `POST /api/iam/users`
+  - Body：`{ name: string, empId: string, phone?: string, orgId?: number | null, isActive?: boolean }`
+  - Response：`{ id: number, ... }`
+- `PUT /api/iam/users/{userId}`
+  - Body：`{ name?: string, empId?: string, phone?: string, orgId?: number | null, isActive?: boolean }`
+  - Response：`{ id: number, ... }`
+- `DELETE /api/iam/users/{userId}`
+  - Response：`{ id: number, deleted: true }`
 - `PUT /api/iam/users/{userId}/status`：用户启停
   - Body：`{ isActive: boolean }`
   - Response：`{ id: number, isActive: boolean }`
@@ -122,7 +180,7 @@
 - **THEN** 仅返回匹配名称/编码/工号/手机号的记录，并返回 total 与分页结果
 
 ### Requirement: 审计覆盖
-系统 SHALL 对组织同步、角色权限配置、用户角色分配、用户启停等关键操作写入审计日志，包含 before/after、操作者、原因（若需要）、来源。
+系统 SHALL 对组织新增/编辑/删除、角色新增/编辑/删除、角色权限配置、用户新增/编辑/删除、用户角色分配、用户启停等关键操作写入审计日志，包含 before/after、操作者、原因（若需要）、来源。
 
 ## MODIFIED Requirements
 
@@ -131,4 +189,6 @@
 系统 SHOULD 在过渡期保留 `/v1/orgs`、`/v1/roles`、`/v1/users` 的只读兼容（或返回迁移提示），并在文档中明确废弃策略。
 
 ## REMOVED Requirements
-无
+### Requirement: 同步作为页面主操作
+**Reason**：组织、角色、用户页面需要转为后台直接维护模式，不能再依赖“同步后查看”的主流程。
+**Migration**：页面移除主同步按钮与相关提示文案；原同步接口如继续保留，仅作为内部维护能力，不再出现在三页主操作区。

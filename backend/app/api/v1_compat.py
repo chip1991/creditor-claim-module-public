@@ -122,7 +122,7 @@ def v1_roles(
             "id": r.id,
             "name": r.name,
             "code": r.key,
-            "desc": None,
+            "desc": r.description,
             "users": role_user_counts.get(r.id, 0),
             "syncTime": getattr(r, "updated_at", None),
             "isActive": bool(r.is_active),
@@ -165,8 +165,8 @@ def v1_users(
         {
             "id": u.id,
             "name": u.username,
-            "empId": None,
-            "phone": None,
+            "empId": u.emp_id,
+            "phone": u.phone,
             "org": u.department.name if u.department else None,
             "orgId": u.department_id,
             "status": "启用" if u.is_active else "禁用",
@@ -175,4 +175,3 @@ def v1_users(
         for u in rows
     ]
     return ApiResponse(data={"total": total, "records": records})
-

@@ -86,6 +86,8 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(64), nullable=False)
+    emp_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="1")
     department_id: Mapped[int | None] = mapped_column(ForeignKey("department.id", ondelete="SET NULL"), nullable=True)
@@ -103,6 +105,7 @@ class Role(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     key: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="1")
     data_scope: Mapped[RoleDataScope] = mapped_column(
         Enum(RoleDataScope, name="role_data_scope"),
