@@ -1,0 +1,12 @@
+- [x] /api/ai/llms/page 返回分页结构（total/records），支持 keyword 过滤
+- [x] LLM 创建/更新/启停/设为默认/删除均可真实落库且写入审计
+- [x] LLM 测试连通性为真实 HTTP 测试，失败时返回可理解的错误信息
+- [x] /api/ai/agents/page 返回分页结构（total/records），支持 keyword 过滤
+- [x] Agent 创建/更新/启停/删除均可真实落库且写入审计
+- [x] Agent 版本 draft/save、publish、rollback、current、versions list 可用且行为符合 spec
+- [x] Agent 测试运行接口返回真实推理输出或明确“不支持”错误，不伪造结果
+- [x] 前端新增菜单与路由入口，页面可访问且与现有风格一致
+- [x] 前端 LLMConfig 支持列表、创建/编辑、设默认、启停、删除、测试连通性
+- [x] 前端 AgentConfig 支持列表、创建/编辑、启停、删除、版本配置最小闭环、测试运行入口
+- [x] 前端 npm run build 通过
+- [x] 重启前后端开发服务并提供可点击预览地址
